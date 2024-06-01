@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "69648850449",
+    "project_id": "bakis-639a8",
+    "storage_bucket": "bakis-639a8.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:69648850449:android:db5b495238505e17069bb0",
+        "android_client_info": {
+          "package_name": "com.example.projectkrs"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBHJxbDiG16rO0KOxjX51rrapzUgv8A7Fo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
