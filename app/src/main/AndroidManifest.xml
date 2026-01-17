@@ -15,7 +15,10 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.ProjectKRS"
         tools:targetApi="31">
-        <activity
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="@string/google_maps_key" />
+     <activity
             android:name=".activities.ChangePasswordActivity"
             android:exported="false" />
         <activity
@@ -23,6 +26,8 @@
             android:exported="true" />
         <activity
             android:name=".activities.RegisterActivity"
+            android:exported="true" />
+        <activity android:name=".activities.MapActivity"
             android:exported="true" />
         <activity
             android:name=".activities.HomeActivity"

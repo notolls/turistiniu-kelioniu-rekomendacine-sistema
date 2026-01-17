@@ -9,6 +9,7 @@ import androidx.fragment.app.FragmentTransaction;
 
 
 import com.example.projectkrs.fragments.HomeFragment;
+import com.example.projectkrs.fragments.MapFragment;
 import com.example.projectkrs.fragments.ProfileFragment;
 import com.example.projectkrs.R;
 import com.example.projectkrs.fragments.SearchFragment;
@@ -57,6 +58,18 @@ public class HomeActivity extends AppCompatActivity {
 
                     // Pakeisti rodomą fragmentą
                     replaceFragment(searchFragment);
+                    return true;
+                case R.id.navigation_map:
+                    // Sukurti naują „MapFragment“ instanciją.
+                    MapFragment mapFragment = new MapFragment();
+
+                    // Nustatyti fragmento parametrus
+                    Bundle bundles = new Bundle();
+                    bundles.putParcelable("user_location", userLocation);
+                    mapFragment.setArguments(bundles);
+
+                    // Pakeisti rodomą fragmentą
+                    replaceFragment(mapFragment);
                     return true;
                 case R.id.navigation_profile:
                     // Pakeisti rodomą fragmentą
