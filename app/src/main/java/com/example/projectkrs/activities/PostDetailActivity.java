@@ -22,6 +22,7 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,26 +48,6 @@ public class PostDetailActivity extends AppCompatActivity {
         Button btnWant = findViewById(R.id.btnWant);
         Button btnVisited = findViewById(R.id.btnVisited);
 
-        // ===== Google Maps =====
-        openMapsButton.setOnClickListener(v -> {
-            if (place != null && place.getLatLng() != null) {
-                double lat = place.getLatLng().latitude;
-                double lng = place.getLatLng().longitude;
-
-                Uri gmmIntentUri = Uri.parse(
-                        "geo:" + lat + "," + lng + "?q=" + lat + "," + lng + "(" + place.getName() + ")"
-                );
-                Intent mapIntent = new Intent(Intent.ACTION_VIEW, gmmIntentUri);
-                mapIntent.setPackage("com.google.android.apps.maps");
-
-                if (mapIntent.resolveActivity(getPackageManager()) != null) {
-                    startActivity(mapIntent);
-                } else {
-                    Toast.makeText(this, "Google Maps nerasta", Toast.LENGTH_SHORT).show();
-                }
-            }
-        });
-
         if (place == null) {
             Log.e("PostDetailActivity", "Place is null");
             finish();
@@ -86,7 +67,7 @@ public class PostDetailActivity extends AppCompatActivity {
         // ===== Image =====
         List<PhotoMetadata> photos = place.getPhotoMetadatas();
         if (photos != null && !photos.isEmpty()) {
-            String photoReference = photos.get(0).zzb();
+            String photoReference = photos.get(0).zzb(); // nauja SDK tvarka
             String imageUrl =
                     "https://maps.googleapis.com/maps/api/place/photo?maxwidth=800"
                             + "&photoreference=" + photoReference
@@ -97,6 +78,26 @@ public class PostDetailActivity extends AppCompatActivity {
             Glide.with(this).load(R.drawable.no_image_placeholder).into(imageView);
         }
 
+        // ===== Google Maps =====
+        openMapsButton.setOnClickListener(v -> {
+            if (place.getLatLng() != null) {
+                double lat = place.getLatLng().latitude;
+                double lng = place.getLatLng().longitude;
+
+                Uri gmmIntentUri = Uri.parse(
+                        "geo:" + lat + "," + lng + "?q=" + lat + "," + lng + "(" + place.getName() + ")"
+                );
+                Intent mapIntent = new Intent(Intent.ACTION_VIEW, gmmIntentUri);
+                mapIntent.setPackage("com.google.android.apps.maps");
+
+                if (mapIntent.resolveActivity(getPackageManager()) != null) {
+                    startActivity(mapIntent);
+                } else {
+                    Toast.makeText(this, "Google Maps nerasta", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+
         // ===== CATEGORY BUTTONS =====
         btnWant.setOnClickListener(v -> savePlaceStatus("want"));
         btnVisited.setOnClickListener(v -> savePlaceStatus("visited"));
@@ -104,12 +105,13 @@ public class PostDetailActivity extends AppCompatActivity {
 
     // ===== FIRESTORE SAVE =====
     private void savePlaceStatus(String status) {
-        if (FirebaseAuth.getInstance().getCurrentUser() == null) {
+        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+        if (currentUser == null) {
             Toast.makeText(this, "Turite prisijungti", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        String userId = FirebaseAuth.getInstance().getCurrentUser().getUid();
+        String userId = currentUser.getUid();
 
         Map<String, Object> data = new HashMap<>();
         data.put("placeId", place.getId());
@@ -118,6 +120,16 @@ public class PostDetailActivity extends AppCompatActivity {
         data.put("status", status);
         data.put("lat", place.getLatLng().latitude);
         data.put("lng", place.getLatLng().longitude);
+
+        // ===== Saugojame photoReferences naudojant .zzb() =====
+        List<PhotoMetadata> photos = place.getPhotoMetadatas();
+        if (photos != null && !photos.isEmpty()) {
+            List<String> photoRefs = new ArrayList<>();
+            for (PhotoMetadata photo : photos) {
+                photoRefs.add(photo.zzb()); // oficialus naujos SDK būdas
+            }
+            data.put("photoReferences", photoRefs);
+        }
 
         FirebaseFirestore.getInstance()
                 .collection("users")
