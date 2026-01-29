@@ -6,7 +6,6 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
-
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -14,80 +13,127 @@ import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+
 import com.bumptech.glide.Glide;
 import com.example.projectkrs.R;
 import com.google.android.libraries.places.api.model.PhotoMetadata;
 import com.google.android.libraries.places.api.model.Place;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.FirebaseFirestore;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class PostDetailActivity extends AppCompatActivity {
+
+    private Place place;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_post_detail);
 
-        // Gauti Place object iš intento
-        Place place = getIntent().getParcelableExtra("place");
+        place = getIntent().getParcelableExtra("place");
         boolean isOpenNow = getIntent().getBooleanExtra("isOpenNow", false);
 
+        ImageView imageView = findViewById(R.id.imageView);
+        TextView textViewTitle = findViewById(R.id.textViewTitle);
+        TextView textViewDescription = findViewById(R.id.textViewDescription);
+        TextView textViewOpeningHours = findViewById(R.id.textViewOpeningHours);
+
         Button openMapsButton = findViewById(R.id.openMapsButton);
+        Button btnWant = findViewById(R.id.btnWant);
+        Button btnVisited = findViewById(R.id.btnVisited);
+
+        // ===== Google Maps =====
         openMapsButton.setOnClickListener(v -> {
             if (place != null && place.getLatLng() != null) {
-                // Extract latitude and longitude coordinates from the Place object
-                double latitude = place.getLatLng().latitude;
-                double longitude = place.getLatLng().longitude;
+                double lat = place.getLatLng().latitude;
+                double lng = place.getLatLng().longitude;
 
-                // Sukurti Intent atidaryti žemėlapius su vietos koordinatėmis
-                Uri gmmIntentUri = Uri.parse("geo:" + latitude + "," + longitude + "?q=" + latitude + "," + longitude + "(" + place.getName() + ")");
+                Uri gmmIntentUri = Uri.parse(
+                        "geo:" + lat + "," + lng + "?q=" + lat + "," + lng + "(" + place.getName() + ")"
+                );
                 Intent mapIntent = new Intent(Intent.ACTION_VIEW, gmmIntentUri);
-                // Naudoti google maps
                 mapIntent.setPackage("com.google.android.apps.maps");
+
                 if (mapIntent.resolveActivity(getPackageManager()) != null) {
                     startActivity(mapIntent);
                 } else {
-                    // jei naudotojas neturi google maps
-                    Toast.makeText(getApplicationContext(), "Neturite Google Maps programos.", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Google Maps nerasta", Toast.LENGTH_SHORT).show();
                 }
-            } else {
-                Log.e("PostDetailActivity", "No Place object found in intent extras");
             }
         });
 
-
-        if (place != null) {
-            // Nustatyti rodinius
-            ImageView imageView = findViewById(R.id.imageView);
-            TextView textViewTitle = findViewById(R.id.textViewTitle);
-            TextView textViewDescription = findViewById(R.id.textViewDescription);
-
-            // Nustatyti paveikslėlį, pavadinimą ir adresą
-            List<PhotoMetadata> photoMetadataList = place.getPhotoMetadatas();
-            if (photoMetadataList != null && !photoMetadataList.isEmpty()) {
-                // Photo metadata is available
-                PhotoMetadata photoMetadata = photoMetadataList.get(0); // Gaunama pirma nuotrauka
-                String photoReference = photoMetadata.zzb(); // Gaunamas photo reference
-                String imageUrl = "https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=" + photoReference + "&key=" + getString(R.string.places_api_key);
-                Glide.with(this).load(imageUrl).into(imageView);
-            } else {
-                // Nėra nuotraukos, Nustatomas placeholder image
-                Glide.with(this).load(R.drawable.no_image_placeholder).into(imageView);
-            }
-            textViewTitle.setText(place.getName());
-            textViewDescription.setText(place.getAddress());
-            TextView textViewOpeningHours = findViewById(R.id.textViewOpeningHours);
-            //Tikrinamas darbo laikas
-            boolean isOpenNowAvailable = getIntent().hasExtra("isOpenNow");
-
-            if (isOpenNowAvailable) {
-                textViewOpeningHours.setText(isOpenNow ? "Atidaryta" : "Uždaryta");
-            } else {
-                // Jei informacijos nėra hide TextView
-                textViewOpeningHours.setVisibility(GONE);
-            }
-        } else {
-            Log.e("PostDetailActivity", "No Place object found in intent extras");
+        if (place == null) {
+            Log.e("PostDetailActivity", "Place is null");
+            finish();
+            return;
         }
+
+        // ===== Place info =====
+        textViewTitle.setText(place.getName());
+        textViewDescription.setText(place.getAddress());
+
+        if (getIntent().hasExtra("isOpenNow")) {
+            textViewOpeningHours.setText(isOpenNow ? "Atidaryta" : "Uždaryta");
+        } else {
+            textViewOpeningHours.setVisibility(GONE);
+        }
+
+        // ===== Image =====
+        List<PhotoMetadata> photos = place.getPhotoMetadatas();
+        if (photos != null && !photos.isEmpty()) {
+            String photoReference = photos.get(0).zzb();
+            String imageUrl =
+                    "https://maps.googleapis.com/maps/api/place/photo?maxwidth=800"
+                            + "&photoreference=" + photoReference
+                            + "&key=" + getString(R.string.places_api_key);
+
+            Glide.with(this).load(imageUrl).into(imageView);
+        } else {
+            Glide.with(this).load(R.drawable.no_image_placeholder).into(imageView);
+        }
+
+        // ===== CATEGORY BUTTONS =====
+        btnWant.setOnClickListener(v -> savePlaceStatus("want"));
+        btnVisited.setOnClickListener(v -> savePlaceStatus("visited"));
+    }
+
+    // ===== FIRESTORE SAVE =====
+    private void savePlaceStatus(String status) {
+        if (FirebaseAuth.getInstance().getCurrentUser() == null) {
+            Toast.makeText(this, "Turite prisijungti", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        String userId = FirebaseAuth.getInstance().getCurrentUser().getUid();
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("placeId", place.getId());
+        data.put("name", place.getName());
+        data.put("address", place.getAddress());
+        data.put("status", status);
+        data.put("lat", place.getLatLng().latitude);
+        data.put("lng", place.getLatLng().longitude);
+
+        FirebaseFirestore.getInstance()
+                .collection("users")
+                .document(userId)
+                .collection("places")
+                .document(place.getId())
+                .set(data)
+                .addOnSuccessListener(aVoid ->
+                        Toast.makeText(this,
+                                status.equals("want")
+                                        ? "Pridėta į „Noriu aplankyti“"
+                                        : "Pažymėta kaip „Aplankyta\"",
+                                Toast.LENGTH_SHORT).show()
+                )
+                .addOnFailureListener(e ->
+                        Toast.makeText(this, "Klaida saugant", Toast.LENGTH_SHORT).show()
+                );
     }
 }
