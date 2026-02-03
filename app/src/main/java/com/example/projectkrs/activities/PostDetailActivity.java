@@ -20,6 +20,7 @@ import com.google.android.libraries.places.api.model.PhotoMetadata;
 import com.google.android.libraries.places.api.model.Place;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.ArrayList;
@@ -67,7 +68,7 @@ public class PostDetailActivity extends AppCompatActivity {
         // ===== Image =====
         List<PhotoMetadata> photos = place.getPhotoMetadatas();
         if (photos != null && !photos.isEmpty()) {
-            String photoReference = photos.get(0).zzb(); // nauja SDK tvarka
+            String photoReference = photos.get(0).zzb();
             String imageUrl =
                     "https://maps.googleapis.com/maps/api/place/photo?maxwidth=800"
                             + "&photoreference=" + photoReference
@@ -103,7 +104,6 @@ public class PostDetailActivity extends AppCompatActivity {
         btnVisited.setOnClickListener(v -> savePlaceStatus("visited"));
     }
 
-    // ===== FIRESTORE SAVE =====
     private void savePlaceStatus(String status) {
         FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
         if (currentUser == null) {
@@ -112,6 +112,8 @@ public class PostDetailActivity extends AppCompatActivity {
         }
 
         String userId = currentUser.getUid();
+        FirebaseFirestore db = FirebaseFirestore.getInstance();
+        DocumentReference userRef = db.collection("users").document(userId);
 
         Map<String, Object> data = new HashMap<>();
         data.put("placeId", place.getId());
@@ -121,29 +123,58 @@ public class PostDetailActivity extends AppCompatActivity {
         data.put("lat", place.getLatLng().latitude);
         data.put("lng", place.getLatLng().longitude);
 
-        // ===== Saugojame photoReferences naudojant .zzb() =====
+        // Photo references
         List<PhotoMetadata> photos = place.getPhotoMetadatas();
         if (photos != null && !photos.isEmpty()) {
             List<String> photoRefs = new ArrayList<>();
             for (PhotoMetadata photo : photos) {
-                photoRefs.add(photo.zzb()); // oficialus naujos SDK būdas
+                photoRefs.add(photo.zzb());
             }
             data.put("photoReferences", photoRefs);
         }
 
-        FirebaseFirestore.getInstance()
-                .collection("users")
+        // Saugo vietą į places kolekciją
+        db.collection("users")
                 .document(userId)
                 .collection("places")
                 .document(place.getId())
                 .set(data)
-                .addOnSuccessListener(aVoid ->
-                        Toast.makeText(this,
-                                status.equals("want")
-                                        ? "Pridėta į „Noriu aplankyti“"
-                                        : "Pažymėta kaip „Aplankyta\"",
-                                Toast.LENGTH_SHORT).show()
-                )
+                .addOnSuccessListener(aVoid -> {
+                    Toast.makeText(this,
+                            status.equals("want")
+                                    ? "Pridėta į „Noriu aplankyti“"
+                                    : "Pažymėta kaip „Aplankyta\"",
+                            Toast.LENGTH_SHORT).show();
+
+                    // ✅ Jei status "visited", padidinti points
+                    if ("visited".equals(status)) {
+                        userRef.get().addOnSuccessListener(doc -> {
+                            if (doc.exists()) {
+                                Object pointsObj = doc.get("points");
+                                long currentPoints;
+
+                                if (pointsObj instanceof Long) {
+                                    currentPoints = (Long) pointsObj;
+                                } else if (pointsObj instanceof Integer) {
+                                    currentPoints = ((Integer) pointsObj).longValue();
+                                } else {
+                                    currentPoints = 0;
+                                }
+
+                                userRef.update("points", currentPoints + 5)
+                                        .addOnSuccessListener(v -> Log.d("PostDetail", "Points updated: " + (currentPoints + 5)))
+                                        .addOnFailureListener(e -> Log.e("PostDetail", "Failed to update points", e));
+                            } else {
+                                // jei dokumentas neegzistuoja, sukurti
+                                Map<String, Object> initialData = new HashMap<>();
+                                initialData.put("points", 5);
+                                initialData.put("selectedMarker", "marker_default");
+                                userRef.set(initialData);
+                            }
+                        });
+                    }
+
+                })
                 .addOnFailureListener(e ->
                         Toast.makeText(this, "Klaida saugant", Toast.LENGTH_SHORT).show()
                 );

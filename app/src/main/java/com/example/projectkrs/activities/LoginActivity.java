@@ -10,15 +10,22 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.projectkrs.R;
-
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.FirebaseFirestore;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 public class LoginActivity extends AppCompatActivity {
 
     private Button buttonLogin;
     private EditText editTextEmail, editTextPassword;
-    private FirebaseAuth firebaseAuth;
     private TextView textViewSignUp;
+
+    private FirebaseAuth firebaseAuth;
+    private FirebaseFirestore db;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -26,44 +33,86 @@ public class LoginActivity extends AppCompatActivity {
         setContentView(R.layout.activity_login);
 
         firebaseAuth = FirebaseAuth.getInstance();
+        db = FirebaseFirestore.getInstance();
 
         buttonLogin = findViewById(R.id.buttonLogin);
         editTextEmail = findViewById(R.id.editTextEmail);
         editTextPassword = findViewById(R.id.editTextPassword);
         textViewSignUp = findViewById(R.id.textViewSignUp);
 
-        buttonLogin.setOnClickListener(v -> {
-            String email = editTextEmail.getText().toString();
-            String password = editTextPassword.getText().toString();
+        buttonLogin.setOnClickListener(v -> loginUser());
 
-            if (email.isEmpty() || password.isEmpty()) {
-                Toast.makeText(LoginActivity.this, "Prašome suvesti visus duomenų laukus", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            // Naudotojo autentifikacija su firebase
-            firebaseAuth.signInWithEmailAndPassword(email, password)
-                    .addOnCompleteListener(LoginActivity.this, task -> {
-                        if (task.isSuccessful()) {
-                            // Prisijungimas sėkmingas
-                            Toast.makeText(LoginActivity.this, "Prisijungimas sėkmingas", Toast.LENGTH_SHORT).show();
-
-                            // Pereiti į "HomeActivity"
-                            Intent intent = new Intent(LoginActivity.this, MainActivity.class);
-                            startActivity(intent);
-                            finish(); // Close LoginActivity kad naudotojas negalėtu grižti atgal
-                        } else {
-                            // Nepavyko prisijungti
-                            Toast.makeText(LoginActivity.this, "Prisijungti nepavyko",
-                                    Toast.LENGTH_SHORT).show();
-                        }
-                    });
-
-        });
         textViewSignUp.setOnClickListener(v -> {
-            // Atidaryti registracijos activity
-            Intent intent = new Intent(LoginActivity.this, RegisterActivity.class);
-            startActivity(intent);
+            startActivity(new Intent(this, RegisterActivity.class));
         });
+    }
+
+    private void loginUser() {
+        String email = editTextEmail.getText().toString().trim();
+        String password = editTextPassword.getText().toString().trim();
+
+        if (email.isEmpty() || password.isEmpty()) {
+            Toast.makeText(this,
+                    "Prašome suvesti visus duomenis",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        firebaseAuth.signInWithEmailAndPassword(email, password)
+                .addOnSuccessListener(authResult -> {
+                    createUserIfNotExists();
+                })
+                .addOnFailureListener(e ->
+                        Toast.makeText(this,
+                                "Prisijungti nepavyko",
+                                Toast.LENGTH_SHORT).show()
+                );
+    }
+
+    /**
+     * 🔥 SVARBIAUSIA DALIS
+     * Sukuria users/{uid}, jei jo dar nėra
+     */
+    private void createUserIfNotExists() {
+        String uid = firebaseAuth.getUid();
+
+        if (uid == null) return;
+
+        DocumentReference userRef =
+                db.collection("users").document(uid);
+
+        userRef.get().addOnSuccessListener(doc -> {
+
+            if (!doc.exists()) {
+                // 🔹 KURIAM NAUJĄ USER
+                Map<String, Object> userData = new HashMap<>();
+                userData.put("points", 100);
+                userData.put("selectedMarker", "marker_default");
+
+                userRef.set(userData)
+                        .addOnSuccessListener(v -> {
+
+                            // 🔹 DEFAULT MARKER
+                            userRef.collection("owned_markers")
+                                    .document("marker_default")
+                                    .set(Collections.singletonMap("owned", true))
+                                    .addOnSuccessListener(x -> openMain());
+
+                        });
+
+            } else {
+                // 🔹 USER JAU YRA
+                openMain();
+            }
+        });
+    }
+
+    private void openMain() {
+        Toast.makeText(this,
+                "Prisijungimas sėkmingas",
+                Toast.LENGTH_SHORT).show();
+
+        startActivity(new Intent(this, MainActivity.class));
+        finish();
     }
 }
