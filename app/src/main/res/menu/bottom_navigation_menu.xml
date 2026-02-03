@@ -9,6 +9,10 @@
         android:icon="@drawable/ic_map"
         android:title="Žemėlapis" />
     <item
+        android:id="@+id/navigation_shop"
+        android:title="Parduotuvė"
+        android:icon="@drawable/shop_ic" />
+    <item
         android:id="@+id/navigation_search"
         android:title="Ieškoti"
         android:icon="@drawable/baseline_search_24" />

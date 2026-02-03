@@ -1,20 +1,27 @@
 package com.example.projectkrs.activities;
 
 import android.os.Bundle;
+import android.util.Log;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 
-
+import com.example.projectkrs.R;
 import com.example.projectkrs.fragments.HomeFragment;
 import com.example.projectkrs.fragments.MapFragment;
 import com.example.projectkrs.fragments.ProfileFragment;
-import com.example.projectkrs.R;
 import com.example.projectkrs.fragments.SearchFragment;
+import com.example.projectkrs.fragments.ShopFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.firebase.firestore.FirebaseFirestore;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class HomeActivity extends AppCompatActivity {
 
@@ -26,69 +33,92 @@ public class HomeActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_home);
 
-        // inicijuoti aptini menu komponentus
         bottomNavigationView = findViewById(R.id.bottom_navigation);
-
-        // Gauti naudotojo buvimo vieta iš main activity
         userLocation = getIntent().getParcelableExtra("user_location");
 
-        // Listeneriai apatinio menu mygtukams
-        bottomNavigationView.setOnNavigationItemSelectedListener(item -> {
+        // Vienkartinis default shop_markers įkėlimas
+        initDefaultShopMarkers();
+
+        bottomNavigationView.setOnItemSelectedListener(item -> {
+            Fragment fragment = null;
+            Bundle args = new Bundle();
+            args.putParcelable("user_location", userLocation);
+
             switch (item.getItemId()) {
-                case R.id.navigation_home:
-                    // Sukurti naują „HomeFragment“ instanciją.
-                    HomeFragment homeFragment = new HomeFragment();
-
-                    // Nustatyti fragmento parametrus
-                    Bundle args = new Bundle();
-                    args.putParcelable("user_location", userLocation);
-                    homeFragment.setArguments(args);
-
-                    // Pakeisti rodomą fragmentą
-                    replaceFragment(homeFragment);
-                    return true;
-                case R.id.navigation_search:
-                    // Sukurti naują „SearchFragment“ instanciją.
-                    SearchFragment searchFragment = new SearchFragment();
-
-                    // Nustatyti fragmento parametrus
-                    Bundle bundle = new Bundle();
-                    bundle.putParcelable("user_location", userLocation);
-                    searchFragment.setArguments(bundle);
-
-                    // Pakeisti rodomą fragmentą
-                    replaceFragment(searchFragment);
-                    return true;
-                case R.id.navigation_map:
-                    // Sukurti naują „MapFragment“ instanciją.
-                    MapFragment mapFragment = new MapFragment();
-
-                    // Nustatyti fragmento parametrus
-                    Bundle bundles = new Bundle();
-                    bundles.putParcelable("user_location", userLocation);
-                    mapFragment.setArguments(bundles);
-
-                    // Pakeisti rodomą fragmentą
-                    replaceFragment(mapFragment);
-                    return true;
-                case R.id.navigation_profile:
-                    // Pakeisti rodomą fragmentą
-                    replaceFragment(new ProfileFragment());
-                    return true;
-                default:
-                    return false;
+                case R.id.navigation_home: fragment = new HomeFragment(); break;
+                case R.id.navigation_search: fragment = new SearchFragment(); break;
+                case R.id.navigation_map: fragment = new MapFragment(); break;
+                case R.id.navigation_shop: fragment = new ShopFragment(); break;
+                case R.id.navigation_profile: fragment = new ProfileFragment(); break;
             }
+
+            if (fragment != null) {
+                fragment.setArguments(args);
+                replaceFragment(fragment);
+            }
+            return true;
         });
 
-        // Nustatyti numatytąjį fragmentą, kuris bus rodomas pirmą kartą atidarius HomeActivity
         bottomNavigationView.setSelectedItemId(R.id.navigation_home);
     }
 
-    // fragmentų pakeitimo metodas
     private void replaceFragment(Fragment fragment) {
-        FragmentManager fragmentManager = getSupportFragmentManager();
-        FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
-        fragmentTransaction.replace(R.id.fragment_container, fragment);
-        fragmentTransaction.commit();
+        FragmentManager fm = getSupportFragmentManager();
+        FragmentTransaction ft = fm.beginTransaction();
+        ft.replace(R.id.fragment_container, fragment);
+        ft.commit();
     }
+
+    /**
+     * Užtikrina, kad default shop_markers egzistuotų Firestore
+     */
+    private void initDefaultShopMarkers() {
+        FirebaseFirestore db = FirebaseFirestore.getInstance();
+
+        List<Map<String, Object>> defaultMarkers = new ArrayList<>();
+
+        Map<String, Object> violetMarker = new HashMap<>();
+        violetMarker.put("name", "Violetinis markeris");
+        violetMarker.put("price", 10);
+        violetMarker.put("drawable", "marker_violet");
+        defaultMarkers.add(violetMarker);
+
+        Map<String, Object> redMarker = new HashMap<>();
+        redMarker.put("name", "Raudonas markeris");
+        redMarker.put("price", 20);
+        redMarker.put("drawable", "marker_red");
+        defaultMarkers.add(redMarker);
+
+        Map<String, Object> blueMarker = new HashMap<>();
+        blueMarker.put("name", "Mėlynas markeris");
+        blueMarker.put("price", 30);
+        blueMarker.put("drawable", "marker_blue");
+        defaultMarkers.add(blueMarker);
+
+        Map<String, Object> googleMarker = new HashMap<>();
+        googleMarker.put("name", "Google markeris");
+        googleMarker.put("price", 30);
+        googleMarker.put("drawable", "google");
+        defaultMarkers.add(blueMarker);
+
+        for (Map<String, Object> marker : defaultMarkers) {
+            String markerName = (String) marker.get("name");
+            db.collection("shop_markers")
+                    .whereEqualTo("name", markerName)
+                    .get()
+                    .addOnSuccessListener(query -> {
+                        if (query.isEmpty()) {
+                            // Sukuriame tik jei neegzistuoja
+                            db.collection("shop_markers")
+                                    .add(marker)
+                                    .addOnSuccessListener(docRef -> Log.d("HomeActivity", "Markeris sukurtas: " + markerName))
+                                    .addOnFailureListener(e -> Log.e("HomeActivity", "Nepavyko sukurti markerio: " + markerName, e));
+                        } else {
+                            Log.d("HomeActivity", "Markeris jau egzistuoja: " + markerName);
+                        }
+                    })
+                    .addOnFailureListener(e -> Log.e("HomeActivity", "Klaida tikrinant markerį: " + markerName, e));
+        }
+    }
+
 }

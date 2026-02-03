@@ -1,5 +1,7 @@
 package com.example.projectkrs.fragments;
 
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -13,6 +15,7 @@ import android.widget.Spinner;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
 import com.example.projectkrs.R;
@@ -20,11 +23,13 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.FirebaseFirestore;
 
 import org.json.JSONArray;
-import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
@@ -42,13 +47,14 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
 
     private Button buttonRefresh;
     private Spinner categorySpinner;
-    private ArrayAdapter<String> categoryAdapter;
-    private Map<String, String> categoryTypesMap;
 
     private static final int DEFAULT_RADIUS = 10000;
     private String selectedCategory = "tourist_attraction";
+    private String selectedMarkerDrawable = "marker_default"; // default marker
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+    private Map<String, String> categoryTypesMap = new HashMap<>();
 
     @Nullable
     @Override
@@ -59,6 +65,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     ) {
         View view = inflater.inflate(R.layout.fragment_map, container, false);
 
+        // Google Maps fragment
         SupportMapFragment mapFragment =
                 (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
         if (mapFragment != null) {
@@ -68,36 +75,33 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
         buttonRefresh = view.findViewById(R.id.buttonRefresh);
         categorySpinner = view.findViewById(R.id.categorySpinner);
 
-        categoryTypesMap = new HashMap<>();
+        // Kategorijos
         categoryTypesMap.put("Kavinės", "cafe");
         categoryTypesMap.put("Restoranai", "restaurant");
         categoryTypesMap.put("Muziejai", "museum");
-        categoryTypesMap.put("Autobusų stotys", "bus_station");
-        categoryTypesMap.put("Traukinių stotys", "train_station");
         categoryTypesMap.put("Parkai", "park");
-        categoryTypesMap.put("Prekybos centrai", "shopping_mall");
-        categoryTypesMap.put("Bendros lankytinos vietos", "tourist_attraction");
+        categoryTypesMap.put("Lankytinos vietos", "tourist_attraction");
 
-        categoryAdapter = new ArrayAdapter<>(
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
                 requireContext(),
                 android.R.layout.simple_spinner_item,
                 new ArrayList<>(categoryTypesMap.keySet())
         );
-        categoryAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        categorySpinner.setAdapter(categoryAdapter);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        categorySpinner.setAdapter(adapter);
 
+        // Gaunam user location iš arguments
         if (getArguments() != null) {
             userLocation = getArguments().getParcelable("user_location");
         }
 
+        // Nuskaitom vartotojo pasirinktą markerį
+        loadUserSelectedMarker();
+
         buttonRefresh.setOnClickListener(v -> {
-            if (mMap == null || !isAdded()) return;
-
-            selectedCategory = categoryTypesMap.get(
-                    categorySpinner.getSelectedItem().toString()
-            );
-
-            fetchNearbyPlaces(mMap.getCameraPosition().target);
+            if (mMap == null || userLocation == null) return;
+            selectedCategory = categoryTypesMap.get(categorySpinner.getSelectedItem().toString());
+            fetchNearbyPlaces(userLocation);
         });
 
         return view;
@@ -113,6 +117,43 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
         }
     }
 
+    private void loadUserSelectedMarker() {
+        String uid = FirebaseAuth.getInstance().getUid();
+        if (uid == null) return;
+
+        FirebaseFirestore.getInstance()
+                .collection("users")
+                .document(uid)
+                .get()
+                .addOnSuccessListener(doc -> {
+                    if (doc.exists() && doc.contains("selectedMarker")) {
+                        selectedMarkerDrawable = doc.getString("selectedMarker");
+                    }
+                });
+    }
+
+    /**
+     * Konvertuoja vektorinę drawable į Bitmap
+     */
+    private Bitmap getBitmapFromVector(int drawableId) {
+        try {
+            if (getContext() == null) return null;
+            final android.graphics.drawable.Drawable drawable = ContextCompat.getDrawable(requireContext(), drawableId);
+            if (drawable == null) return null;
+
+            Bitmap bitmap = Bitmap.createBitmap(drawable.getIntrinsicWidth(),
+                    drawable.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
+
+            Canvas canvas = new Canvas(bitmap);
+            drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+            drawable.draw(canvas);
+            return bitmap;
+        } catch (Exception e) {
+            Log.e("MapFragment", "Bitmap conversion error", e);
+            return null;
+        }
+    }
+
     private void fetchNearbyPlaces(LatLng location) {
         new Thread(() -> {
             try {
@@ -125,11 +166,11 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
                                 "&key=" + getString(R.string.places_api_key);
 
                 URL url = new URL(urlString);
-                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                connection.setRequestMethod("GET");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
 
                 BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(connection.getInputStream())
+                        new InputStreamReader(conn.getInputStream())
                 );
 
                 StringBuilder response = new StringBuilder();
@@ -139,20 +180,28 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
                 }
                 reader.close();
 
-                JSONObject jsonResponse = new JSONObject(response.toString());
-                JSONArray results = jsonResponse.getJSONArray("results");
+                JSONObject json = new JSONObject(response.toString());
+                JSONArray results = json.getJSONArray("results");
 
                 mainHandler.post(() -> {
                     if (!isAdded() || mMap == null) return;
 
                     mMap.clear();
 
+                    int markerResId = getResources().getIdentifier(
+                            selectedMarkerDrawable,
+                            "drawable",
+                            requireContext().getPackageName()
+                    );
+
+                    Bitmap markerBitmap = getBitmapFromVector(markerResId);
+
                     for (int i = 0; i < results.length(); i++) {
                         try {
-                            JSONObject place = results.getJSONObject(i);
-                            String name = place.getString("name");
+                            JSONObject obj = results.getJSONObject(i);
+                            String name = obj.getString("name");
 
-                            JSONObject loc = place
+                            JSONObject loc = obj
                                     .getJSONObject("geometry")
                                     .getJSONObject("location");
 
@@ -161,19 +210,29 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
                                     loc.getDouble("lng")
                             );
 
-                            mMap.addMarker(
-                                    new MarkerOptions()
-                                            .position(pos)
-                                            .title(name)
-                            );
-                        } catch (JSONException e) {
-                            Log.e("MapFragment", "JSON parse error", e);
+                            if (markerBitmap != null) {
+                                mMap.addMarker(
+                                        new MarkerOptions()
+                                                .position(pos)
+                                                .title(name)
+                                                .icon(BitmapDescriptorFactory.fromBitmap(markerBitmap))
+                                );
+                            } else {
+                                mMap.addMarker(
+                                        new MarkerOptions()
+                                                .position(pos)
+                                                .title(name)
+                                );
+                            }
+
+                        } catch (Exception e) {
+                            Log.e("MapFragment", "Marker error", e);
                         }
                     }
                 });
 
             } catch (Exception e) {
-                Log.e("MapFragment", "Error fetching places", e);
+                Log.e("MapFragment", "Fetch error", e);
             }
         }).start();
     }
