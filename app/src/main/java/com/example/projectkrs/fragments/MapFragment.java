@@ -9,8 +9,8 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
-import android.widget.Button;
 import android.widget.Spinner;
 
 import androidx.annotation.NonNull;
@@ -44,13 +44,11 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
 
     private GoogleMap mMap;
     private LatLng userLocation;
-
-    private Button buttonRefresh;
     private Spinner categorySpinner;
 
     private static final int DEFAULT_RADIUS = 10000;
     private String selectedCategory = "tourist_attraction";
-    private String selectedMarkerDrawable = "marker_default"; // default marker
+    private String selectedMarkerDrawable = "marker_default";
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
@@ -65,14 +63,6 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     ) {
         View view = inflater.inflate(R.layout.fragment_map, container, false);
 
-        // Google Maps fragment
-        SupportMapFragment mapFragment =
-                (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
-        if (mapFragment != null) {
-            mapFragment.getMapAsync(this);
-        }
-
-        buttonRefresh = view.findViewById(R.id.buttonRefresh);
         categorySpinner = view.findViewById(R.id.categorySpinner);
 
         // Kategorijos
@@ -90,19 +80,33 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         categorySpinner.setAdapter(adapter);
 
-        // Gaunam user location iš arguments
+        // Spinner listener – automatinis refresh
+        categorySpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                selectedCategory = categoryTypesMap.get(categorySpinner.getSelectedItem().toString());
+                if (mMap != null && userLocation != null) {
+                    fetchNearbyPlaces(userLocation);
+                }
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
+
+        // Google Maps fragment
+        SupportMapFragment mapFragment =
+                (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
+        if (mapFragment != null) {
+            mapFragment.getMapAsync(this);
+        }
+
+        // Gaunam vartotojo vietą
         if (getArguments() != null) {
             userLocation = getArguments().getParcelable("user_location");
         }
 
-        // Nuskaitom vartotojo pasirinktą markerį
         loadUserSelectedMarker();
-
-        buttonRefresh.setOnClickListener(v -> {
-            if (mMap == null || userLocation == null) return;
-            selectedCategory = categoryTypesMap.get(categorySpinner.getSelectedItem().toString());
-            fetchNearbyPlaces(userLocation);
-        });
 
         return view;
     }
@@ -110,10 +114,9 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     @Override
     public void onMapReady(@NonNull GoogleMap googleMap) {
         mMap = googleMap;
-
         if (userLocation != null) {
             mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(userLocation, 12f));
-            fetchNearbyPlaces(userLocation);
+            fetchNearbyPlaces(userLocation); // automatinis refresh pirmą kartą
         }
     }
 
@@ -128,13 +131,14 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
                 .addOnSuccessListener(doc -> {
                     if (doc.exists() && doc.contains("selectedMarker")) {
                         selectedMarkerDrawable = doc.getString("selectedMarker");
+                        // jei jau yra žemėlapis, atnaujinti markerius
+                        if (mMap != null && userLocation != null) {
+                            fetchNearbyPlaces(userLocation);
+                        }
                     }
                 });
     }
 
-    /**
-     * Konvertuoja vektorinę drawable į Bitmap
-     */
     private Bitmap getBitmapFromVector(int drawableId) {
         try {
             if (getContext() == null) return null;
@@ -143,7 +147,6 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
 
             Bitmap bitmap = Bitmap.createBitmap(drawable.getIntrinsicWidth(),
                     drawable.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
-
             Canvas canvas = new Canvas(bitmap);
             drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
             drawable.draw(canvas);
@@ -180,8 +183,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
                 }
                 reader.close();
 
-                JSONObject json = new JSONObject(response.toString());
-                JSONArray results = json.getJSONArray("results");
+                JSONArray results = new JSONObject(response.toString()).getJSONArray("results");
 
                 mainHandler.post(() -> {
                     if (!isAdded() || mMap == null) return;
@@ -200,30 +202,14 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
                         try {
                             JSONObject obj = results.getJSONObject(i);
                             String name = obj.getString("name");
+                            JSONObject loc = obj.getJSONObject("geometry").getJSONObject("location");
+                            LatLng pos = new LatLng(loc.getDouble("lat"), loc.getDouble("lng"));
 
-                            JSONObject loc = obj
-                                    .getJSONObject("geometry")
-                                    .getJSONObject("location");
-
-                            LatLng pos = new LatLng(
-                                    loc.getDouble("lat"),
-                                    loc.getDouble("lng")
-                            );
-
+                            MarkerOptions markerOptions = new MarkerOptions().position(pos).title(name);
                             if (markerBitmap != null) {
-                                mMap.addMarker(
-                                        new MarkerOptions()
-                                                .position(pos)
-                                                .title(name)
-                                                .icon(BitmapDescriptorFactory.fromBitmap(markerBitmap))
-                                );
-                            } else {
-                                mMap.addMarker(
-                                        new MarkerOptions()
-                                                .position(pos)
-                                                .title(name)
-                                );
+                                markerOptions.icon(BitmapDescriptorFactory.fromBitmap(markerBitmap));
                             }
+                            mMap.addMarker(markerOptions);
 
                         } catch (Exception e) {
                             Log.e("MapFragment", "Marker error", e);
