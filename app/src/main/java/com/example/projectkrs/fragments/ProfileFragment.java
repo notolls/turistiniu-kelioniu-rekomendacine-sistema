@@ -6,7 +6,10 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.AnimationUtils;
 import android.widget.Button;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -24,69 +27,135 @@ public class ProfileFragment extends Fragment {
 
     private TextView textViewUserEmail;
     private Button buttonChangePassword, buttonLogout;
+    private LinearLayout achievementsContainer;
+
     private static final int CHANGE_PASSWORD_REQUEST = 1;
 
-    // konstruktorius
-    public ProfileFragment() {
+    // 🔹 PAVYZDINIAI DUOMENYS (vėliau – iš Firebase)
+    private int visitedPlaces = 35;
 
-    }
+    private boolean boughtRedMarker = true;
+    private boolean boughtBlueMarker = false;
+    private boolean boughtPurpleMarker = true;
+
+    public ProfileFragment() {}
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == CHANGE_PASSWORD_REQUEST) {
-            if (resultCode == Activity.RESULT_OK) {
-                // Password pakeitimas sėkmingas
-            } else {
-                // Password keitimas nepavyko arba buvo atšauktas
-                Toast.makeText(getActivity(), "Slaptažodžio keitimas nepavyko arba buvo atšauktas", Toast.LENGTH_SHORT).show();
-            }
+        if (requestCode == CHANGE_PASSWORD_REQUEST && resultCode != Activity.RESULT_OK) {
+            Toast.makeText(
+                    getActivity(),
+                    "Slaptažodžio keitimas nepavyko arba buvo atšauktas",
+                    Toast.LENGTH_SHORT
+            ).show();
         }
     }
 
-
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+    public View onCreateView(
+            @NonNull LayoutInflater inflater,
+            @Nullable ViewGroup container,
+            @Nullable Bundle savedInstanceState
+    ) {
         View view = inflater.inflate(R.layout.fragment_profile, container, false);
 
-        // Inicijuoti UI komponentus
         textViewUserEmail = view.findViewById(R.id.textViewUserEmail);
         buttonChangePassword = view.findViewById(R.id.buttonChangePassword);
         buttonLogout = view.findViewById(R.id.buttonLogout);
+        achievementsContainer = view.findViewById(R.id.achievementsContainer);
 
-        // Gauti dabartini naudotoją
         FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
-        if (currentUser != null) {
-            // Gauti naudotojo El. Paštą
-            String userEmail = currentUser.getEmail();
-            if (userEmail != null) {
-                // Nustatyti naudotojo El. Paštą į TextView
-                textViewUserEmail.setText(userEmail);
-            }
+        if (currentUser != null && currentUser.getEmail() != null) {
+            textViewUserEmail.setText(currentUser.getEmail());
         }
 
-        // Listeneris pakeistį slaptažodį
         buttonChangePassword.setOnClickListener(v -> {
-            // Paleisti ChangePasswordActivity
             Intent intent = new Intent(getActivity(), ChangePasswordActivity.class);
             startActivityForResult(intent, CHANGE_PASSWORD_REQUEST);
         });
 
-
-        // Listeneris atsijungti
         buttonLogout.setOnClickListener(v -> {
-            // Atjungti naudotoją iš Firebase Authentication
             FirebaseAuth.getInstance().signOut();
-
-            // Rodyti mainactivity
             Intent intent = new Intent(getActivity(), MainActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(intent);
-
-            // Atsijungimo toast
-            Toast.makeText(getActivity(), "Jūs sėkmingai atsijungėte. ", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getActivity(), "Atsijungta sėkmingai", Toast.LENGTH_SHORT).show();
         });
 
+        loadAchievements();
         return view;
+    }
+
+    // ======================
+    // 🏆 ACHIEVEMENTAI
+    // ======================
+    private void loadAchievements() {
+
+        achievementsContainer.removeAllViews();
+
+        // 🎨 MARKERIAI
+        addAchievement(
+                "Raudonas menininkas",
+                "Nusipirkai raudoną markerį",
+                boughtRedMarker
+        );
+
+        addAchievement(
+                "Mėlynas strategas",
+                "Nusipirkai mėlyną markerį",
+                boughtBlueMarker
+        );
+
+        addAchievement(
+                "Violetinis vizionierius",
+                "Nusipirkai violetinį markerį",
+                boughtPurpleMarker
+        );
+
+        // 🌍 KELIONĖS
+        addAchievement("Keliautojas I", "Aplankyta 10 vietų", visitedPlaces >= 10);
+        addAchievement("Keliautojas II", "Aplankyta 20 vietų", visitedPlaces >= 20);
+        addAchievement("Keliautojas III", "Aplankyta 30 vietų", visitedPlaces >= 30);
+        addAchievement("Keliautojas IV", "Aplankyta 40 vietų", visitedPlaces >= 40);
+        addAchievement("Keliautojas V", "Aplankyta 50 vietų", visitedPlaces >= 50);
+        addAchievement("Legenda", "Aplankyta 60 vietų", visitedPlaces >= 60);
+
+        // ⭐ PAPILDOMI
+        addAchievement("Pirmas prisijungimas", "Prisijungei pirmą kartą", true);
+        addAchievement("Profilio tyrinėtojas", "Aplankei profilio langą", true);
+    }
+
+    private void addAchievement(String title, String description, boolean unlocked) {
+
+        View item = LayoutInflater.from(getContext())
+                .inflate(R.layout.item_achievement, achievementsContainer, false);
+
+        ImageView icon = item.findViewById(R.id.achievementIcon);
+        TextView titleView = item.findViewById(R.id.achievementTitle);
+        TextView descView = item.findViewById(R.id.achievementDescription);
+
+        titleView.setText(title);
+        descView.setText(description);
+
+        if (unlocked) {
+            icon.setImageResource(android.R.drawable.star_big_on);
+
+            item.setAlpha(0f);
+            item.post(() -> {
+                item.setAlpha(1f);
+                item.startAnimation(
+                        AnimationUtils.loadAnimation(
+                                getContext(),
+                                R.anim.achievement_unlock
+                        )
+                );
+            });
+        } else {
+            icon.setImageResource(android.R.drawable.ic_lock_lock);
+            item.setAlpha(0.5f);
+        }
+
+        achievementsContainer.addView(item);
     }
 }
