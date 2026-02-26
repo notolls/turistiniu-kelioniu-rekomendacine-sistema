@@ -3,7 +3,6 @@ package com.example.projectkrs.activities;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
-import android.util.Log;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -26,6 +25,8 @@ import com.google.android.libraries.places.api.model.PhotoMetadata;
 import com.google.android.libraries.places.api.model.Place;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import org.json.JSONArray;
@@ -43,62 +44,81 @@ public class PostDetailActivity extends AppCompatActivity {
     private CommentAdapter commentAdapter;
     private List<Comment> commentList = new ArrayList<>();
 
+    private Button btnWant, btnVisited;
+    private FirebaseFirestore db;
+    private String userId;
+
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_post_detail);
 
         place = getIntent().getParcelableExtra("place");
-        if (place == null) { finish(); return; }
+        if (place == null) {
+            finish();
+            return;
+        }
 
         ImageView imageView = findViewById(R.id.imageView);
         TextView textViewTitle = findViewById(R.id.textViewTitle);
         TextView textViewDescription = findViewById(R.id.textViewDescription);
         TextView textViewOpeningHours = findViewById(R.id.textViewOpeningHours);
         Button openMapsButton = findViewById(R.id.openMapsButton);
-        Button btnWant = findViewById(R.id.btnWant);
-        Button btnVisited = findViewById(R.id.btnVisited);
+        btnWant = findViewById(R.id.btnWant);
+        btnVisited = findViewById(R.id.btnVisited);
 
-        // ===== RecyclerView =====
+        // Firebase
+        db = FirebaseFirestore.getInstance();
+        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+        if (currentUser == null) {
+            Toast.makeText(this, "Turite prisijungti", Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
+        userId = currentUser.getUid();
+
+        // ===== RecyclerView Comments =====
         recyclerViewComments = findViewById(R.id.recyclerViewComments);
         recyclerViewComments.setLayoutManager(new LinearLayoutManager(this));
         commentAdapter = new CommentAdapter(commentList);
         recyclerViewComments.setAdapter(commentAdapter);
 
-        // ===== Place info =====
+        // ===== Place Info =====
         textViewTitle.setText(place.getName());
         textViewDescription.setText(place.getAddress());
         textViewOpeningHours.setText(getIntent().getBooleanExtra("isOpenNow", false) ? "Atidaryta" : "Uždaryta");
 
-        // ===== Image =====
+        // ===== Load Image =====
         loadPlaceMainImage(imageView);
 
-        // ===== Google Maps button =====
+        // ===== Google Maps Button =====
         openMapsButton.setOnClickListener(v -> {
             if (place.getLatLng() != null) {
                 Uri gmmIntentUri = Uri.parse(
-                        "geo:" + place.getLatLng().latitude + "," + place.getLatLng().longitude
-                                + "?q=" + place.getLatLng().latitude + "," + place.getLatLng().longitude
-                                + "(" + place.getName() + ")"
+                        "geo:" + place.getLatLng().latitude + "," + place.getLatLng().longitude +
+                                "?q=" + place.getLatLng().latitude + "," + place.getLatLng().longitude +
+                                "(" + place.getName() + ")"
                 );
                 Intent mapIntent = new Intent(Intent.ACTION_VIEW, gmmIntentUri);
                 mapIntent.setPackage("com.google.android.apps.maps");
-                if (mapIntent.resolveActivity(getPackageManager()) != null) startActivity(mapIntent);
-                else Toast.makeText(this, "Google Maps nerasta", Toast.LENGTH_SHORT).show();
+                if (mapIntent.resolveActivity(getPackageManager()) != null)
+                    startActivity(mapIntent);
+                else
+                    Toast.makeText(this, "Google Maps nerasta", Toast.LENGTH_SHORT).show();
             }
         });
 
-        // ===== CATEGORY BUTTONS =====
+        // ===== Button Listeners =====
         btnWant.setOnClickListener(v -> savePlaceStatus("want"));
         btnVisited.setOnClickListener(v -> savePlaceStatus("visited"));
 
-        // ===== LOAD COMMENTS =====
+        // ===== Load Google Comments =====
         loadGoogleComments(place.getId());
+
+        // ===== Disable btnVisited if already visited =====
+        checkIfAlreadyVisited();
     }
 
-    /**
-     * Pagrindinės vietos nuotraukos užkėlimas
-     */
     private void loadPlaceMainImage(ImageView imageView) {
         List<PhotoMetadata> photos = place.getPhotoMetadatas();
         if (photos != null && !photos.isEmpty()) {
@@ -112,19 +132,7 @@ public class PostDetailActivity extends AppCompatActivity {
         }
     }
 
-    /**
-     * Firebase saugojimas: status + nuotraukos
-     */
     private void savePlaceStatus(String status) {
-        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
-        if (currentUser == null) {
-            Toast.makeText(this, "Turite prisijungti", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        String userId = currentUser.getUid();
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
-
         Map<String, Object> data = new HashMap<>();
         data.put("placeId", place.getId());
         data.put("name", place.getName());
@@ -133,12 +141,12 @@ public class PostDetailActivity extends AppCompatActivity {
         data.put("lat", place.getLatLng().latitude);
         data.put("lng", place.getLatLng().longitude);
 
-        // ✅ Saugome photoReferences į Firebase
+        // Save photoReferences
         List<PhotoMetadata> photos = place.getPhotoMetadatas();
         if (photos != null && !photos.isEmpty()) {
             List<String> photoRefs = new ArrayList<>();
             for (PhotoMetadata photo : photos) {
-                photoRefs.add(photo.zzb()); // photoReference string
+                photoRefs.add(photo.zzb());
             }
             data.put("photoReferences", photoRefs);
         }
@@ -148,17 +156,49 @@ public class PostDetailActivity extends AppCompatActivity {
                 .collection("places")
                 .document(place.getId())
                 .set(data)
-                .addOnSuccessListener(aVoid ->
-                        Toast.makeText(this, "Vieta pažymėta: " + status, Toast.LENGTH_SHORT).show()
-                )
-                .addOnFailureListener(e ->
-                        Toast.makeText(this, "Klaida saugant vietą", Toast.LENGTH_SHORT).show()
-                );
+                .addOnSuccessListener(aVoid -> {
+
+                    // ✅ Add 10 points only if "visited" and first time
+                    if (status.equals("visited")) {
+                        db.collection("users")
+                                .document(userId)
+                                .collection("places")
+                                .document(place.getId())
+                                .get()
+                                .addOnSuccessListener(doc -> {
+                                    if (!doc.contains("visitedPointsAdded")) {
+                                        // Add points
+                                        db.collection("users").document(userId)
+                                                .update("points", FieldValue.increment(10));
+                                        // Mark that points were added
+                                        db.collection("users")
+                                                .document(userId)
+                                                .collection("places")
+                                                .document(place.getId())
+                                                .update("visitedPointsAdded", true);
+                                        btnVisited.setEnabled(false); // disable button
+                                    }
+                                });
+                    }
+
+                    Toast.makeText(this, "Vieta pažymėta: " + status, Toast.LENGTH_SHORT).show();
+                })
+                .addOnFailureListener(e -> Toast.makeText(this, "Klaida saugant vietą", Toast.LENGTH_SHORT).show());
     }
 
-    /**
-     * Gauname Google vietos atsiliepimus
-     */
+    private void checkIfAlreadyVisited() {
+        db.collection("users")
+                .document(userId)
+                .collection("places")
+                .document(place.getId())
+                .get()
+                .addOnSuccessListener(doc -> {
+                    if (doc.exists() && doc.contains("visitedPointsAdded")) {
+                        btnVisited.setEnabled(false);
+                    }
+                });
+    }
+
     private void loadGoogleComments(String placeId) {
         String url = "https://maps.googleapis.com/maps/api/place/details/json?place_id="
                 + placeId + "&fields=name,reviews&key=" + getString(R.string.places_api_key);
@@ -180,7 +220,9 @@ public class PostDetailActivity extends AppCompatActivity {
                             }
                             commentAdapter.notifyDataSetChanged();
                         }
-                    } catch (Exception e) { e.printStackTrace(); }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
                 },
                 error -> Toast.makeText(this, "Klaida gaunant komentarus", Toast.LENGTH_SHORT).show()
         );
