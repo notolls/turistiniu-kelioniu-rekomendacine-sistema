@@ -2,13 +2,11 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/viewPager"
         android:layout_width="match_parent"
         android:layout_height="200dp"
         android:layout_centerHorizontal="true" />
-
 
     <LinearLayout
         android:id="@+id/dotsLayout"
@@ -18,14 +16,12 @@
         android:gravity="center"
         android:orientation="horizontal">
 
-
         <ImageView
             android:id="@+id/dot1"
             android:layout_width="10dp"
             android:layout_height="10dp"
             android:src="@drawable/dot_unselected"
             android:layout_margin="4dp" />
-
 
         <ImageView
             android:id="@+id/dot2"
@@ -34,7 +30,6 @@
             android:src="@drawable/dot_unselected"
             android:layout_margin="4dp" />
 
-
         <ImageView
             android:id="@+id/dot3"
             android:layout_width="10dp"
@@ -42,23 +37,43 @@
             android:src="@drawable/dot_unselected"
             android:layout_margin="4dp" />
     </LinearLayout>
-    <Button
-        android:id="@+id/optionsButton"
+
+    <!-- Horizontal layout: tekstas + iconas -->
+    <LinearLayout
+        android:id="@+id/optionsLayout"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Keisti rekomendacijas"
         android:layout_below="@id/viewPager"
+        android:layout_marginTop="16dp"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="16dp" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
 
+        <Button
+            android:id="@+id/optionsButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Pasirinkti atstumą/kategoriją"
+            android:backgroundTint="@color/purple_200"
+            android:textColor="@android:color/white"/>
+
+        <ImageView
+            android:id="@+id/buttonStatisticsIcon"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/ic_map"
+            android:contentDescription="Statistics"
+            android:clickable="true"
+            android:focusable="true" />
+    </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/postRecyclerView"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/optionsButton"
+        android:layout_height="0dp"
+        android:layout_below="@id/optionsLayout"
+        android:layout_alignParentBottom="true"
         android:layout_marginTop="16dp" />
-
-
 
 </RelativeLayout>

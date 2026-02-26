@@ -1,9 +1,6 @@
 package com.example.projectkrs.fragments;
 
-
-
 import android.content.Intent;
-
 import android.os.Bundle;
 import android.os.Handler;
 import android.text.TextUtils;
@@ -16,16 +13,16 @@ import android.widget.ImageView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentTransaction;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager2.widget.ViewPager2;
 
-import com.example.projectkrs.adapters.ImageSliderAdapter;
-import com.example.projectkrs.dialogs.OptionsDialog;
-import com.example.projectkrs.adapters.PostAdapter;
 import com.example.projectkrs.R;
+import com.example.projectkrs.adapters.ImageSliderAdapter;
+import com.example.projectkrs.adapters.PostAdapter;
+import com.example.projectkrs.dialogs.OptionsDialog;
 import com.example.projectkrs.activities.PostDetailActivity;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.libraries.places.api.model.PhotoMetadata;
@@ -51,117 +48,94 @@ import java.util.Map;
 public class HomeFragment extends Fragment implements PostAdapter.OnItemClickListener {
 
     private static final long SLIDE_INTERVAL = 5000;
+    private static int DEFAULT_RADIUS = 10000;
+    private static String DEFAULT_TYPE ="tourist_attraction";
 
     private ViewPager2 viewPager;
     private RecyclerView postRecyclerView;
     private ImageSliderAdapter imageSliderAdapter;
     private PostAdapter postAdapter;
     private List<Place> placesList;
-
     private ImageView dot1, dot2, dot3;
-
     private final Handler slideHandler = new Handler();
     private Runnable slideRunnable;
-
     private LatLng userLocation;
-
-    private Button optionsButton;
     private Map<String, Boolean> openingHoursMap = new HashMap<>();
 
-
-
-
-    // Default atstumas metrais
-    private static int DEFAULT_RADIUS = 10000;
-
-    // Default kategoriją
-    private static String DEFAULT_TYPE ="tourist_attraction";
-
-    // konstruktorius
-    public HomeFragment() {
-    }
-
+    public HomeFragment() {}
 
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_home, container, false);
+
         viewPager = view.findViewById(R.id.viewPager);
         dot1 = view.findViewById(R.id.dot1);
         dot2 = view.findViewById(R.id.dot2);
         dot3 = view.findViewById(R.id.dot3);
         postRecyclerView = view.findViewById(R.id.postRecyclerView);
+
         Button optionsButton = view.findViewById(R.id.optionsButton);
+        ImageView statisticsIcon = view.findViewById(R.id.buttonStatisticsIcon);
 
-        optionsButton.setOnClickListener(v -> {
-            showOptionsDialog(); // Pasirinkti atstumą ir kategoriją
-        });
+        optionsButton.setOnClickListener(v -> showOptionsDialog());
+        statisticsIcon.setOnClickListener(v -> openStatisticsFragment());
 
-
-        // Gauti naudotojo lokaciją iš homeactivity
+        // Naudotojo lokacija iš HomeActivity
         userLocation = getArguments().getParcelable("user_location");
 
         placesList = new ArrayList<>();
-
         imageSliderAdapter = new ImageSliderAdapter(getContext(), placesList);
         viewPager.setAdapter(imageSliderAdapter);
 
         postAdapter = new PostAdapter(placesList);
         postAdapter.setOnItemClickListener(this);
-        LinearLayoutManager layoutManager = new LinearLayoutManager(getContext());
-        postRecyclerView.setLayoutManager(layoutManager);
+        postRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         postRecyclerView.setAdapter(postAdapter);
 
         fetchUserCategoryFromFirestore();
 
-
-
         return view;
+    }
+
+    private void openStatisticsFragment() {
+        FragmentTransaction transaction = getParentFragmentManager().beginTransaction();
+        transaction.replace(R.id.fragment_container, new com.example.projectkrs.fragments.StatisticsFragment());
+        transaction.addToBackStack(null);
+        transaction.commit();
     }
 
     private void fetchUserCategoryFromFirestore() {
         FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
         if (currentUser != null) {
             FirebaseFirestore db = FirebaseFirestore.getInstance();
-            String userId = currentUser.getUid();
-
-            db.collection("users").document(userId)
+            db.collection("users").document(currentUser.getUid())
                     .get()
                     .addOnSuccessListener(documentSnapshot -> {
                         if (documentSnapshot.exists()) {
                             String selectedCategory = documentSnapshot.getString("categoryType");
                             if (!TextUtils.isEmpty(selectedCategory)) {
-                                // Atnaujinti pasiulymus su naudotojo kategoriją pasirinkta registruojantis
                                 DEFAULT_TYPE = selectedCategory;
-                                Log.d("HomeFragment", "User selected category: " + selectedCategory);
-                                // Fetch nearby places su naudotojo kategoriją pasirinkta registruojantis
                                 fetchNearbyTouristAttractions(userLocation);
                             }
                         }
                     })
-                    .addOnFailureListener(e -> Log.e("HomeFragment", "Error fetching user category type from Firestore", e));
+                    .addOnFailureListener(e -> Log.e("HomeFragment", "Error fetching user category type", e));
         }
     }
-    //metodas atidaryti dialogą
+
     public void showOptionsDialog() {
         OptionsDialog optionsDialog = new OptionsDialog(getContext(), this);
         optionsDialog.show();
     }
 
     public void handleOptionsDialogResult(int radius, String selectedCategory) {
-        // atnaujinti atstumą ir kategoriją
-        DEFAULT_RADIUS = radius*1000;
+        DEFAULT_RADIUS = radius * 1000;
         DEFAULT_TYPE = selectedCategory;
-
-        // Call fetchNearbyPlaces su naujomis reikšmėmis
         fetchNearbyTouristAttractions(userLocation);
     }
 
-
-
     private void fetchNearbyTouristAttractions(LatLng currentLocation) {
-        Log.d("HomeFragment", "Fetching nearby places for location: " + currentLocation.latitude + ", " + currentLocation.longitude);
-
         new Thread(() -> {
             try {
                 String urlString = "https://maps.googleapis.com/maps/api/place/nearbysearch/json" +
@@ -169,8 +143,7 @@ public class HomeFragment extends Fragment implements PostAdapter.OnItemClickLis
                         "&radius=" + DEFAULT_RADIUS +
                         "&language=lt"+
                         "&type=" + DEFAULT_TYPE +
-                        "&key=" + getResources().getString(R.string.places_api_key); // Replace with your actual Places API key
-
+                        "&key=" + getResources().getString(R.string.places_api_key);
 
                 URL url = new URL(urlString);
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
@@ -179,71 +152,45 @@ public class HomeFragment extends Fragment implements PostAdapter.OnItemClickLis
                 BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
                 StringBuilder response = new StringBuilder();
                 String line;
-                while ((line = reader.readLine()) != null) {
-                    response.append(line);
-                }
+                while ((line = reader.readLine()) != null) response.append(line);
                 reader.close();
 
-                // Išskaidyti JSON atsaką
                 JSONObject jsonResponse = new JSONObject(response.toString());
                 JSONArray results = jsonResponse.getJSONArray("results");
                 List<Place> places = new ArrayList<>();
                 for (int i = 0; i < results.length(); i++) {
                     JSONObject placeObject = results.getJSONObject(i);
-
-                    // Ištraukti place detales
                     String placeId = placeObject.getString("place_id");
                     String name = placeObject.getString("name");
                     String address = placeObject.getString("vicinity");
+
                     JSONObject geometryObject = placeObject.getJSONObject("geometry");
                     JSONObject locationObject = geometryObject.getJSONObject("location");
-                    double latitude = locationObject.getDouble("lat");
-                    double longitude = locationObject.getDouble("lng");
+                    LatLng latLng = new LatLng(locationObject.getDouble("lat"), locationObject.getDouble("lng"));
 
-                    LatLng latLng = new LatLng(latitude, longitude);
-                    List<PhotoMetadata> photoMetadataList = new ArrayList<>();
-
+                    List<PhotoMetadata> photos = new ArrayList<>();
                     if (placeObject.has("photos")) {
                         JSONArray photosArray = placeObject.getJSONArray("photos");
                         for (int j = 0; j < photosArray.length(); j++) {
                             JSONObject photoObject = photosArray.getJSONObject(j);
-                            String photoReference = photoObject.optString("photo_reference");
-
-                            int width = photoObject.optInt("width");
-                            int height = photoObject.optInt("height");
-                            JSONArray htmlAttributionsArray = photoObject.optJSONArray("html_attributions");
-                            List<String> htmlAttributions = new ArrayList<>();
-                            if (htmlAttributionsArray != null) {
-                                for (int k = 0; k < htmlAttributionsArray.length(); k++) {
-                                    htmlAttributions.add(htmlAttributionsArray.getString(k));
-                                }
-                            }
-
-                            // Sukurti PhotoMetadata objektą naudotojant Builder
-                            PhotoMetadata photoMetadata = PhotoMetadata.builder(photoReference)
-                                    .setWidth(width)
-                                    .setHeight(height)
-                                    .build();
-                            photoMetadataList.add(photoMetadata);
+                            photos.add(PhotoMetadata.builder(photoObject.optString("photo_reference"))
+                                    .setWidth(photoObject.optInt("width"))
+                                    .setHeight(photoObject.optInt("height"))
+                                    .build());
                         }
                     }
 
                     boolean isOpenNow = false;
                     if (placeObject.has("opening_hours")) {
-                        JSONObject openingHoursObject = placeObject.getJSONObject("opening_hours");
-                        isOpenNow = openingHoursObject.getBoolean("open_now");
+                        isOpenNow = placeObject.getJSONObject("opening_hours").optBoolean("open_now", false);
                     }
-
-                    // Saugoti darbo laiko informaciją map'e
                     openingHoursMap.put(placeId, isOpenNow);
 
-
-                    // sukurti Place object su photo metadata
                     Place place = Place.builder()
                             .setId(placeId)
                             .setName(name)
                             .setAddress(address)
-                            .setPhotoMetadatas(photoMetadataList)
+                            .setPhotoMetadatas(photos)
                             .setLatLng(latLng)
                             .build();
                     places.add(place);
@@ -258,48 +205,26 @@ public class HomeFragment extends Fragment implements PostAdapter.OnItemClickLis
     }
 
     private void onPlacesFetched(List<Place> places) {
-        // Atnaujiti UI su gautomis vietomis
         placesList.clear();
         placesList.addAll(places);
 
-        // Prideti 3 vietas į ViewPager
-        List<Place> viewPagerPlaces = new ArrayList<>();
-        if (places.size() >= 3) {
-            viewPagerPlaces.addAll(places.subList(0, 3)); // pirmos 3 vietos
-        } else {
-            viewPagerPlaces.addAll(places); // idėti visas jei mažiau nei 3
-        }
-
-        // Atnaujinti ViewPager adapter su naujomis vietomis
-        imageSliderAdapter.updateData(viewPagerPlaces);
+        // Top 3 vietos į ViewPager
+        List<Place> top3 = new ArrayList<>();
+        for (int i = 0; i < Math.min(3, places.size()); i++) top3.add(places.get(i));
+        imageSliderAdapter.updateData(top3);
         imageSliderAdapter.notifyDataSetChanged();
 
-        // Atnaujinti PostAdapter su visomis vietomis
-        postAdapter.updateData(places);
+        postAdapter.updateData(places); // RecyclerView rodo viską
         postAdapter.notifyDataSetChanged();
 
-        updateDots(0); // Update UI elements like dots
-        startAutoSlide(); // Start auto sliding
+        updateDots(0);
+        startAutoSlide();
     }
 
     private void updateDots(int position) {
-        switch (position) {
-            case 0:
-                dot1.setImageResource(R.drawable.dot_selected);
-                dot2.setImageResource(R.drawable.dot_unselected);
-                dot3.setImageResource(R.drawable.dot_unselected);
-                break;
-            case 1:
-                dot1.setImageResource(R.drawable.dot_unselected);
-                dot2.setImageResource(R.drawable.dot_selected);
-                dot3.setImageResource(R.drawable.dot_unselected);
-                break;
-            case 2:
-                dot1.setImageResource(R.drawable.dot_unselected);
-                dot2.setImageResource(R.drawable.dot_unselected);
-                dot3.setImageResource(R.drawable.dot_selected);
-                break;
-        }
+        dot1.setImageResource(position == 0 ? R.drawable.dot_selected : R.drawable.dot_unselected);
+        dot2.setImageResource(position == 1 ? R.drawable.dot_selected : R.drawable.dot_unselected);
+        dot3.setImageResource(position == 2 ? R.drawable.dot_selected : R.drawable.dot_unselected);
     }
 
     private void startAutoSlide() {
@@ -307,36 +232,24 @@ public class HomeFragment extends Fragment implements PostAdapter.OnItemClickLis
         slideRunnable = new Runnable() {
             @Override
             public void run() {
-                int nextSlide = viewPager.getCurrentItem() + 1;
-                if (nextSlide >= 3) {
-                    nextSlide = 0;
-                }
-                viewPager.setCurrentItem(nextSlide, true);
-                updateDots(nextSlide);
+                int next = (viewPager.getCurrentItem() + 1) % 3;
+                viewPager.setCurrentItem(next, true);
+                updateDots(next);
                 slideHandler.postDelayed(this, SLIDE_INTERVAL);
             }
         };
         slideHandler.postDelayed(slideRunnable, SLIDE_INTERVAL);
     }
 
-    private boolean getOpeningHours(String placeId) {
-        return Boolean.TRUE.equals(openingHoursMap.getOrDefault(placeId, false));
-    }
-
-
     @Override
     public void onItemClick(int position) {
         Place selectedPlace = placesList.get(position);
-        boolean isOpenNow = getOpeningHours(selectedPlace.getId());
-        openDetailActivity(selectedPlace, isOpenNow);
-    }
-    private void openDetailActivity(Place place, boolean isOpenNow) {
+        boolean isOpenNow = openingHoursMap.getOrDefault(selectedPlace.getId(), false);
         Intent intent = new Intent(getActivity(), PostDetailActivity.class);
-        intent.putExtra("place", place); // Perduoti Place object
-        intent.putExtra("isOpenNow", isOpenNow); // Perduoti darbo laiko informaciją
+        intent.putExtra("place", selectedPlace);
+        intent.putExtra("isOpenNow", isOpenNow);
         startActivity(intent);
     }
-
 
     @Override
     public void onDestroyView() {

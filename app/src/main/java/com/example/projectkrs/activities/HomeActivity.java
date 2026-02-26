@@ -14,6 +14,7 @@ import com.example.projectkrs.fragments.MapFragment;
 import com.example.projectkrs.fragments.ProfileFragment;
 import com.example.projectkrs.fragments.SearchFragment;
 import com.example.projectkrs.fragments.ShopFragment;
+import com.example.projectkrs.fragments.StatisticsFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.firebase.firestore.FirebaseFirestore;
@@ -49,7 +50,8 @@ public class HomeActivity extends AppCompatActivity {
                 case R.id.navigation_search: fragment = new SearchFragment(); break;
                 case R.id.navigation_map: fragment = new MapFragment(); break;
                 case R.id.navigation_shop: fragment = new ShopFragment(); break;
-                case R.id.navigation_profile: fragment = new ProfileFragment(); break;
+                case R.id.navigation_profile: fragment = new ProfileFragment();
+//                case R.id.navigation_statistics: fragment = new StatisticsFragment();
             }
 
             if (fragment != null) {
@@ -99,7 +101,7 @@ public class HomeActivity extends AppCompatActivity {
         googleMarker.put("name", "Google markeris");
         googleMarker.put("price", 30);
         googleMarker.put("drawable", "google");
-        defaultMarkers.add(blueMarker);
+        defaultMarkers.add(googleMarker);
 
         for (Map<String, Object> marker : defaultMarkers) {
             String markerName = (String) marker.get("name");
