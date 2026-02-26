@@ -3,7 +3,13 @@ package com.example.projectkrs.activities;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.view.Gravity;
+import android.view.ViewGroup;
+import android.view.animation.AlphaAnimation;
+import android.view.animation.Animation;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -25,7 +31,6 @@ import com.google.android.libraries.places.api.model.PhotoMetadata;
 import com.google.android.libraries.places.api.model.Place;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 
@@ -54,10 +59,7 @@ public class PostDetailActivity extends AppCompatActivity {
         setContentView(R.layout.activity_post_detail);
 
         place = getIntent().getParcelableExtra("place");
-        if (place == null) {
-            finish();
-            return;
-        }
+        if (place == null) { finish(); return; }
 
         ImageView imageView = findViewById(R.id.imageView);
         TextView textViewTitle = findViewById(R.id.textViewTitle);
@@ -67,7 +69,6 @@ public class PostDetailActivity extends AppCompatActivity {
         btnWant = findViewById(R.id.btnWant);
         btnVisited = findViewById(R.id.btnVisited);
 
-        // Firebase
         db = FirebaseFirestore.getInstance();
         FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
         if (currentUser == null) {
@@ -77,21 +78,21 @@ public class PostDetailActivity extends AppCompatActivity {
         }
         userId = currentUser.getUid();
 
-        // ===== RecyclerView Comments =====
+        // RecyclerView Comments
         recyclerViewComments = findViewById(R.id.recyclerViewComments);
         recyclerViewComments.setLayoutManager(new LinearLayoutManager(this));
         commentAdapter = new CommentAdapter(commentList);
         recyclerViewComments.setAdapter(commentAdapter);
 
-        // ===== Place Info =====
+        // Place info
         textViewTitle.setText(place.getName());
         textViewDescription.setText(place.getAddress());
         textViewOpeningHours.setText(getIntent().getBooleanExtra("isOpenNow", false) ? "Atidaryta" : "Uždaryta");
 
-        // ===== Load Image =====
+        // Load Image
         loadPlaceMainImage(imageView);
 
-        // ===== Google Maps Button =====
+        // Google Maps button
         openMapsButton.setOnClickListener(v -> {
             if (place.getLatLng() != null) {
                 Uri gmmIntentUri = Uri.parse(
@@ -108,14 +109,14 @@ public class PostDetailActivity extends AppCompatActivity {
             }
         });
 
-        // ===== Button Listeners =====
+        // Buttons
         btnWant.setOnClickListener(v -> savePlaceStatus("want"));
         btnVisited.setOnClickListener(v -> savePlaceStatus("visited"));
 
-        // ===== Load Google Comments =====
+        // Load comments
         loadGoogleComments(place.getId());
 
-        // ===== Disable btnVisited if already visited =====
+        // Disable visited button if already visited
         checkIfAlreadyVisited();
     }
 
@@ -145,9 +146,7 @@ public class PostDetailActivity extends AppCompatActivity {
         List<PhotoMetadata> photos = place.getPhotoMetadatas();
         if (photos != null && !photos.isEmpty()) {
             List<String> photoRefs = new ArrayList<>();
-            for (PhotoMetadata photo : photos) {
-                photoRefs.add(photo.zzb());
-            }
+            for (PhotoMetadata photo : photos) photoRefs.add(photo.zzb());
             data.put("photoReferences", photoRefs);
         }
 
@@ -155,35 +154,98 @@ public class PostDetailActivity extends AppCompatActivity {
                 .document(userId)
                 .collection("places")
                 .document(place.getId())
-                .set(data)
-                .addOnSuccessListener(aVoid -> {
+                .get()
+                .addOnSuccessListener(doc -> {
+                    boolean firstVisit = !doc.contains("visitedPointsAdded");
 
-                    // ✅ Add 10 points only if "visited" and first time
-                    if (status.equals("visited")) {
-                        db.collection("users")
-                                .document(userId)
-                                .collection("places")
-                                .document(place.getId())
-                                .get()
-                                .addOnSuccessListener(doc -> {
-                                    if (!doc.contains("visitedPointsAdded")) {
-                                        // Add points
-                                        db.collection("users").document(userId)
-                                                .update("points", FieldValue.increment(10));
-                                        // Mark that points were added
-                                        db.collection("users")
-                                                .document(userId)
-                                                .collection("places")
-                                                .document(place.getId())
-                                                .update("visitedPointsAdded", true);
-                                        btnVisited.setEnabled(false); // disable button
-                                    }
-                                });
-                    }
+                    db.collection("users")
+                            .document(userId)
+                            .collection("places")
+                            .document(place.getId())
+                            .set(data)
+                            .addOnSuccessListener(aVoid -> {
 
-                    Toast.makeText(this, "Vieta pažymėta: " + status, Toast.LENGTH_SHORT).show();
-                })
-                .addOnFailureListener(e -> Toast.makeText(this, "Klaida saugant vietą", Toast.LENGTH_SHORT).show());
+                                if (status.equals("visited") && firstVisit) {
+                                    // Add 10 points
+                                    db.collection("users").document(userId)
+                                            .update("points", FieldValue.increment(10));
+
+                                    // Mark as added
+                                    db.collection("users")
+                                            .document(userId)
+                                            .collection("places")
+                                            .document(place.getId())
+                                            .update("visitedPointsAdded", true);
+
+                                    // Disable button
+                                    btnVisited.setEnabled(false);
+
+                                    // Show +10 animation
+                                    showPointsAnimation("+10", R.drawable.ic_diamond);
+                                }
+
+                                Toast.makeText(this, "Vieta pažymėta: " + status, Toast.LENGTH_SHORT).show();
+                            })
+                            .addOnFailureListener(e -> Toast.makeText(this, "Klaida saugant vietą", Toast.LENGTH_SHORT).show());
+                });
+    }
+
+    private void showPointsAnimation(String text, int iconResId) {
+        FrameLayout rootLayout = findViewById(android.R.id.content);
+
+        FrameLayout animationLayout = new FrameLayout(this);
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        );
+        animationLayout.setLayoutParams(params);
+        animationLayout.setBackgroundColor(0x88000000); // translucent black
+
+        // Diamond icon
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(iconResId);
+        FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(
+                300, 300
+        );
+        iconParams.gravity = Gravity.CENTER;
+        icon.setLayoutParams(iconParams);
+
+        // Text
+        TextView tv = new TextView(this);
+        tv.setText(text);
+        tv.setTextSize(48f);
+        tv.setTextColor(0xFFFFFFFF);
+        tv.setGravity(Gravity.CENTER);
+        FrameLayout.LayoutParams tvParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        tvParams.gravity = Gravity.CENTER_HORIZONTAL | Gravity.CENTER_VERTICAL;
+        tv.setLayoutParams(tvParams);
+
+        animationLayout.addView(icon);
+        animationLayout.addView(tv);
+        rootLayout.addView(animationLayout);
+
+        // Fade in/out animation
+        Animation fadeIn = new AlphaAnimation(0f, 1f);
+        fadeIn.setDuration(300);
+        Animation fadeOut = new AlphaAnimation(1f, 0f);
+        fadeOut.setDuration(300);
+        fadeOut.setStartOffset(1200);
+
+        fadeIn.setAnimationListener(new Animation.AnimationListener() {
+            @Override public void onAnimationStart(Animation animation) {}
+            @Override public void onAnimationEnd(Animation animation) { animationLayout.startAnimation(fadeOut); }
+            @Override public void onAnimationRepeat(Animation animation) {}
+        });
+        fadeOut.setAnimationListener(new Animation.AnimationListener() {
+            @Override public void onAnimationStart(Animation animation) {}
+            @Override public void onAnimationEnd(Animation animation) { rootLayout.removeView(animationLayout); }
+            @Override public void onAnimationRepeat(Animation animation) {}
+        });
+
+        animationLayout.startAnimation(fadeIn);
     }
 
     private void checkIfAlreadyVisited() {
@@ -220,9 +282,7 @@ public class PostDetailActivity extends AppCompatActivity {
                             }
                             commentAdapter.notifyDataSetChanged();
                         }
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
+                    } catch (Exception e) { e.printStackTrace(); }
                 },
                 error -> Toast.makeText(this, "Klaida gaunant komentarus", Toast.LENGTH_SHORT).show()
         );
