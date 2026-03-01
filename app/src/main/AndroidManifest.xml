@@ -22,6 +22,9 @@
             android:name=".activities.ChangePasswordActivity"
             android:exported="false" />
         <activity
+            android:name=".activities.QuizActivity"
+            android:exported="true" />
+        <activity
             android:name=".activities.LoginActivity"
             android:exported="true" />
         <activity

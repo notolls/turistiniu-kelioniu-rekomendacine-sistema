@@ -20,6 +20,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager2.widget.ViewPager2;
 
 import com.example.projectkrs.R;
+import com.example.projectkrs.activities.QuizActivity;
 import com.example.projectkrs.adapters.ImageSliderAdapter;
 import com.example.projectkrs.adapters.PostAdapter;
 import com.example.projectkrs.dialogs.OptionsDialog;
@@ -77,10 +78,12 @@ public class HomeFragment extends Fragment implements PostAdapter.OnItemClickLis
 
         Button optionsButton = view.findViewById(R.id.optionsButton);
         ImageView statisticsIcon = view.findViewById(R.id.buttonStatisticsIcon);
-
+        ImageView quizButton = view.findViewById(R.id.quizButton);
         optionsButton.setOnClickListener(v -> showOptionsDialog());
         statisticsIcon.setOnClickListener(v -> openStatisticsFragment());
-
+        if (quizButton != null) {
+            quizButton.setOnClickListener(v -> openQuizActivity());
+        }
         // Naudotojo lokacija iš HomeActivity
         userLocation = getArguments().getParcelable("user_location");
 
@@ -255,5 +258,12 @@ public class HomeFragment extends Fragment implements PostAdapter.OnItemClickLis
     public void onDestroyView() {
         super.onDestroyView();
         slideHandler.removeCallbacks(slideRunnable);
+    }
+
+    private void openQuizActivity() {
+        if (getActivity() == null) return;
+
+        Intent intent = new Intent(requireActivity(), QuizActivity.class);
+        startActivity(intent);
     }
 }
