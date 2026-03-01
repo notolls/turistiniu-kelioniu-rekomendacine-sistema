@@ -20,25 +20,25 @@
             android:id="@+id/dot1"
             android:layout_width="10dp"
             android:layout_height="10dp"
-            android:src="@drawable/dot_unselected"
-            android:layout_margin="4dp" />
+            android:layout_margin="4dp"
+            android:src="@drawable/dot_unselected" />
 
         <ImageView
             android:id="@+id/dot2"
             android:layout_width="10dp"
             android:layout_height="10dp"
-            android:src="@drawable/dot_unselected"
-            android:layout_margin="4dp" />
+            android:layout_margin="4dp"
+            android:src="@drawable/dot_unselected" />
 
         <ImageView
             android:id="@+id/dot3"
             android:layout_width="10dp"
             android:layout_height="10dp"
-            android:src="@drawable/dot_unselected"
-            android:layout_margin="4dp" />
+            android:layout_margin="4dp"
+            android:src="@drawable/dot_unselected" />
     </LinearLayout>
 
-    <!-- Horizontal layout: tekstas + iconas -->
+    <!-- Horizontal layout: quiz icon + rekomendacija -->
     <LinearLayout
         android:id="@+id/optionsLayout"
         android:layout_width="wrap_content"
@@ -49,23 +49,40 @@
         android:orientation="horizontal"
         android:gravity="center_vertical">
 
+        <!-- 🔥 Quiz ImageView KAIRĖJE -->
+        <ImageView
+            android:id="@+id/quizButton"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginEnd="12dp"
+            android:src="@drawable/quistion_mark"
+            android:contentDescription="Mini žaidimai"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="6dp"/>
+
+        <!-- Rekomendacijos mygtukas -->
         <Button
             android:id="@+id/optionsButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Pasirinkti atstumą/kategoriją"
+            android:text="Pasirinkti rekomendacija"
             android:backgroundTint="@color/purple_200"
             android:textColor="@android:color/white"/>
 
+        <!-- Statistikos icon -->
         <ImageView
             android:id="@+id/buttonStatisticsIcon"
             android:layout_width="30dp"
             android:layout_height="30dp"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="12dp"
             android:src="@drawable/ic_map"
             android:contentDescription="Statistics"
             android:clickable="true"
-            android:focusable="true" />
+            android:focusable="true"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="4dp"/>
     </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView
