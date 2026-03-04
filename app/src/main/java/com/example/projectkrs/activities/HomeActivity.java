@@ -1,7 +1,7 @@
 package com.example.projectkrs.activities;
 
 import android.os.Bundle;
-import android.util.Log;
+import android.view.View;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
@@ -9,38 +9,37 @@ import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 
 import com.example.projectkrs.R;
-import com.example.projectkrs.fragments.HomeFragment;
-import com.example.projectkrs.fragments.MapFragment;
-import com.example.projectkrs.fragments.ProfileFragment;
-import com.example.projectkrs.fragments.SearchFragment;
-import com.example.projectkrs.fragments.ShopFragment;
-import com.example.projectkrs.fragments.StatisticsFragment;
+import com.example.projectkrs.fragments.*;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.FirebaseFirestore;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
-public class HomeActivity extends AppCompatActivity {
+public class HomeActivity extends AppCompatActivity
+        implements ShopFragment.OnBackgroundChangeListener {
 
     private BottomNavigationView bottomNavigationView;
     private LatLng userLocation;
+    private FirebaseFirestore db;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_home);
 
+        db = FirebaseFirestore.getInstance();
+
         bottomNavigationView = findViewById(R.id.bottom_navigation);
         userLocation = getIntent().getParcelableExtra("user_location");
 
-        // Vienkartinis default shop_markers įkėlimas
         initDefaultShopMarkers();
+        initDefaultBackgrounds();
+        loadUserBackground();
 
         bottomNavigationView.setOnItemSelectedListener(item -> {
+
             Fragment fragment = null;
             Bundle args = new Bundle();
             args.putParcelable("user_location", userLocation);
@@ -50,14 +49,14 @@ public class HomeActivity extends AppCompatActivity {
                 case R.id.navigation_search: fragment = new SearchFragment(); break;
                 case R.id.navigation_map: fragment = new MapFragment(); break;
                 case R.id.navigation_shop: fragment = new ShopFragment(); break;
-                case R.id.navigation_profile: fragment = new ProfileFragment();
-//                case R.id.navigation_statistics: fragment = new StatisticsFragment();
+                case R.id.navigation_profile: fragment = new ProfileFragment(); break;
             }
 
             if (fragment != null) {
                 fragment.setArguments(args);
                 replaceFragment(fragment);
             }
+
             return true;
         });
 
@@ -71,56 +70,99 @@ public class HomeActivity extends AppCompatActivity {
         ft.commit();
     }
 
-    /**
-     * Užtikrina, kad default shop_markers egzistuotų Firestore
-     */
-    private void initDefaultShopMarkers() {
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
+    // ===========================
+    // LIVE BACKGROUND KEITIMAS
+    // ===========================
+    @Override
+    public void onBackgroundChanged(String drawableName) {
 
-        List<Map<String, Object>> defaultMarkers = new ArrayList<>();
+        int resId = getResources().getIdentifier(
+                drawableName,
+                "drawable",
+                getPackageName()
+        );
 
-        Map<String, Object> violetMarker = new HashMap<>();
-        violetMarker.put("name", "Violetinis markeris");
-        violetMarker.put("price", 10);
-        violetMarker.put("drawable", "marker_violet");
-        defaultMarkers.add(violetMarker);
-
-        Map<String, Object> redMarker = new HashMap<>();
-        redMarker.put("name", "Raudonas markeris");
-        redMarker.put("price", 20);
-        redMarker.put("drawable", "marker_red");
-        defaultMarkers.add(redMarker);
-
-        Map<String, Object> blueMarker = new HashMap<>();
-        blueMarker.put("name", "Mėlynas markeris");
-        blueMarker.put("price", 30);
-        blueMarker.put("drawable", "marker_blue");
-        defaultMarkers.add(blueMarker);
-
-        Map<String, Object> googleMarker = new HashMap<>();
-        googleMarker.put("name", "Google markeris");
-        googleMarker.put("price", 30);
-        googleMarker.put("drawable", "google");
-        defaultMarkers.add(googleMarker);
-
-        for (Map<String, Object> marker : defaultMarkers) {
-            String markerName = (String) marker.get("name");
-            db.collection("shop_markers")
-                    .whereEqualTo("name", markerName)
-                    .get()
-                    .addOnSuccessListener(query -> {
-                        if (query.isEmpty()) {
-                            // Sukuriame tik jei neegzistuoja
-                            db.collection("shop_markers")
-                                    .add(marker)
-                                    .addOnSuccessListener(docRef -> Log.d("HomeActivity", "Markeris sukurtas: " + markerName))
-                                    .addOnFailureListener(e -> Log.e("HomeActivity", "Nepavyko sukurti markerio: " + markerName, e));
-                        } else {
-                            Log.d("HomeActivity", "Markeris jau egzistuoja: " + markerName);
-                        }
-                    })
-                    .addOnFailureListener(e -> Log.e("HomeActivity", "Klaida tikrinant markerį: " + markerName, e));
+        if (resId != 0) {
+            findViewById(android.R.id.content)
+                    .setBackgroundResource(resId);
         }
     }
 
+    private void loadUserBackground() {
+
+        String uid = FirebaseAuth.getInstance().getUid();
+        if (uid == null) return;
+
+        db.collection("users").document(uid)
+                .get()
+                .addOnSuccessListener(doc -> {
+
+                    if (doc.exists() && doc.contains("selectedBackground")) {
+
+                        String drawableName = doc.getString("selectedBackground");
+
+                        int resId = getResources().getIdentifier(
+                                drawableName,
+                                "drawable",
+                                getPackageName()
+                        );
+
+                        if (resId != 0) {
+                            findViewById(android.R.id.content)
+                                    .setBackgroundResource(resId);
+                        }
+                    }
+                });
+    }
+
+    // ===========================
+    // DEFAULT MARKERIAI
+    // ===========================
+    private void initDefaultShopMarkers() {
+
+        List<Map<String, Object>> markers = new ArrayList<>();
+        markers.add(createItem("Violetinis markeris", 10, "marker_violet"));
+        markers.add(createItem("Raudonas markeris", 20, "marker_red"));
+        markers.add(createItem("Mėlynas markeris", 30, "marker_blue"));
+
+        for (Map<String, Object> marker : markers) {
+            db.collection("shop_markers")
+                    .whereEqualTo("name", marker.get("name"))
+                    .get()
+                    .addOnSuccessListener(query -> {
+                        if (query.isEmpty()) {
+                            db.collection("shop_markers").add(marker);
+                        }
+                    });
+        }
+    }
+
+    // ===========================
+    // DEFAULT BACKGROUNDAI
+    // ===========================
+    private void initDefaultBackgrounds() {
+
+        List<Map<String, Object>> backgrounds = new ArrayList<>();
+        backgrounds.add(createItem("Žalias gradientas", 25, "green_gradient_background"));
+        backgrounds.add(createItem("Mėlynas su taškais", 40, "blue_dots_background"));
+
+        for (Map<String, Object> bg : backgrounds) {
+            db.collection("shop_backgrounds")
+                    .whereEqualTo("name", bg.get("name"))
+                    .get()
+                    .addOnSuccessListener(query -> {
+                        if (query.isEmpty()) {
+                            db.collection("shop_backgrounds").add(bg);
+                        }
+                    });
+        }
+    }
+
+    private Map<String, Object> createItem(String name, int price, String drawable) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("name", name);
+        map.put("price", price);
+        map.put("drawable", drawable);
+        return map;
+    }
 }

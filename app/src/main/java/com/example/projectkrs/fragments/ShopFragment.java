@@ -1,40 +1,49 @@
 package com.example.projectkrs.fragments;
 
+import android.content.Context;
 import android.os.Bundle;
-import android.view.LayoutInflater;
-import android.view.View;
-import android.view.ViewGroup;
+import android.view.*;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+import androidx.annotation.*;
 import androidx.fragment.app.Fragment;
-import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
+import androidx.recyclerview.widget.*;
 
 import com.example.projectkrs.R;
 import com.example.projectkrs.adapters.ShopAdapter;
 import com.example.projectkrs.model.ShopMarker;
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.firestore.DocumentSnapshot;
-import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.*;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class ShopFragment extends Fragment {
 
+    public interface OnBackgroundChangeListener {
+        void onBackgroundChanged(String drawableName);
+    }
+
+    private OnBackgroundChangeListener backgroundListener;
+
     private RecyclerView recyclerView;
-    private ShopAdapter adapter;
-    private final List<ShopMarker> markers = new ArrayList<>();
     private TextView textPoints;
 
     private FirebaseFirestore db;
     private String userId;
     private int userPoints = 0;
+
+    private final List<ShopMarker> items = new ArrayList<>();
+    private ShopAdapter adapter;
+
+    @Override
+    public void onAttach(@NonNull Context context) {
+        super.onAttach(context);
+
+        if (context instanceof OnBackgroundChangeListener) {
+            backgroundListener = (OnBackgroundChangeListener) context;
+        }
+    }
 
     @Nullable
     @Override
@@ -52,96 +61,83 @@ public class ShopFragment extends Fragment {
         db = FirebaseFirestore.getInstance();
         userId = FirebaseAuth.getInstance().getUid();
 
-        if (userId == null) {
-            Toast.makeText(getContext(), "Neprisijungęs vartotojas", Toast.LENGTH_SHORT).show();
-            return view;
-        }
-
-        adapter = new ShopAdapter(markers, this::onMarkerClicked);
+        adapter = new ShopAdapter(items, this::onItemClicked);
         recyclerView.setAdapter(adapter);
 
         loadUserPoints();
-        loadShopMarkers();
+        loadAllShopItems();
 
         return view;
     }
 
-    // ===== Load user points from Firestore =====
     private void loadUserPoints() {
         db.collection("users").document(userId)
                 .get()
                 .addOnSuccessListener(doc -> {
                     if (doc.exists() && doc.contains("points")) {
                         userPoints = doc.getLong("points").intValue();
-                    } else {
-                        userPoints = 0;
-                        db.collection("users").document(userId).update("points", 0);
                     }
                     textPoints.setText("Taškai: " + userPoints);
-                })
-                .addOnFailureListener(e -> textPoints.setText("Taškai: 0"));
+                });
     }
 
-    // ===== Load shop markers from Firestore =====
-    private void loadShopMarkers() {
-        db.collection("shop_markers")
-                .get()
+    private void loadAllShopItems() {
+
+        items.clear();
+
+        db.collection("shop_markers").get()
                 .addOnSuccessListener(snapshot -> {
-                    if (snapshot.isEmpty()) {
-                        // Jei kolekcija tuščia – sukurti default markerius
-                        createDefaultMarkersForShop();
-                        return;
+
+                    for (DocumentSnapshot doc : snapshot) {
+                        ShopMarker item = doc.toObject(ShopMarker.class);
+                        if (item != null) items.add(item);
                     }
 
-                    markers.clear();
-                    for (DocumentSnapshot doc : snapshot.getDocuments()) {
-                        ShopMarker marker = doc.toObject(ShopMarker.class);
-                        if (marker != null) markers.add(marker);
-                    }
-                    adapter.notifyDataSetChanged();
-                })
-                .addOnFailureListener(e -> Toast.makeText(getContext(), "Nepavyko užkrauti shop", Toast.LENGTH_SHORT).show());
+                    db.collection("shop_backgrounds").get()
+                            .addOnSuccessListener(bgSnap -> {
+
+                                for (DocumentSnapshot doc : bgSnap) {
+                                    ShopMarker item = doc.toObject(ShopMarker.class);
+                                    if (item != null) items.add(item);
+                                }
+
+                                adapter.notifyDataSetChanged();
+                            });
+                });
     }
 
-    private void createDefaultMarkersForShop() {
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
+    private void onItemClicked(ShopMarker item) {
 
-        Map<String, Object> violetMarker = new HashMap<>();
-        violetMarker.put("name", "Violetinis markeris");
-        violetMarker.put("price", 10);
-        violetMarker.put("drawable", "marker_violet");
-
-        db.collection("shop_markers").add(violetMarker)
-                .addOnSuccessListener(docRef -> loadShopMarkers()) // po sukūrimo iš karto pakartojam load
-                .addOnFailureListener(e -> Toast.makeText(getContext(), "Nepavyko sukurti default markerio", Toast.LENGTH_SHORT).show());
-    }
-
-
-    // ===== Buy / Select marker =====
-    private void onMarkerClicked(ShopMarker marker) {
-        if (userPoints >= marker.getPrice()) {
-            userPoints -= marker.getPrice();
-            textPoints.setText("Taškai: " + userPoints);
-
-            db.collection("users").document(userId)
-                    .update("points", userPoints,
-                            "selectedMarker", marker.getDrawable())
-                    .addOnSuccessListener(v -> Toast.makeText(
-                            getContext(),
-                            "Marker pasirinktas: " + marker.getName(),
-                            Toast.LENGTH_SHORT
-                    ).show())
-                    .addOnFailureListener(e -> Toast.makeText(
-                            getContext(),
-                            "Nepavyko pasirinkti markerio",
-                            Toast.LENGTH_SHORT
-                    ).show());
-        } else {
-            Toast.makeText(
-                    getContext(),
-                    "Nepakanka taškų (" + userPoints + " / " + marker.getPrice() + ")",
-                    Toast.LENGTH_SHORT
-            ).show();
+        if (userPoints < item.getPrice()) {
+            Toast.makeText(getContext(), "Nepakanka taškų", Toast.LENGTH_SHORT).show();
+            return;
         }
+
+        userPoints -= item.getPrice();
+        textPoints.setText("Taškai: " + userPoints);
+
+        Map<String, Object> update = new HashMap<>();
+        update.put("points", userPoints);
+
+        if (item.getDrawable().contains("marker")) {
+
+            update.put("selectedMarker", item.getDrawable());
+
+        } else {
+
+            update.put("selectedBackground", item.getDrawable());
+
+            // 🔥 LIVE BACKGROUND KEITIMAS
+            if (backgroundListener != null) {
+                backgroundListener.onBackgroundChanged(item.getDrawable());
+            }
+        }
+
+        db.collection("users").document(userId)
+                .update(update)
+                .addOnSuccessListener(v ->
+                        Toast.makeText(getContext(),
+                                "Nupirkta: " + item.getName(),
+                                Toast.LENGTH_SHORT).show());
     }
 }
