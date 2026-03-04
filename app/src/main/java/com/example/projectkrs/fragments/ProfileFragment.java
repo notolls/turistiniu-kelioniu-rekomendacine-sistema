@@ -16,7 +16,7 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
-
+import com.example.projectkrs.fragments.ChatFragment;
 import com.example.projectkrs.R;
 import com.example.projectkrs.activities.ChangePasswordActivity;
 import com.example.projectkrs.activities.MainActivity;
@@ -64,6 +64,16 @@ public class ProfileFragment extends Fragment {
         buttonChangePassword = view.findViewById(R.id.buttonChangePassword);
         buttonLogout = view.findViewById(R.id.buttonLogout);
         achievementsContainer = view.findViewById(R.id.achievementsContainer);
+
+        Button buttonOpenChat = view.findViewById(R.id.buttonOpenChat);
+
+        buttonOpenChat.setOnClickListener(v -> {
+            requireActivity().getSupportFragmentManager()
+                    .beginTransaction()
+                    .replace(R.id.fragment_container, new ChatFragment())
+                    .addToBackStack(null)
+                    .commit();
+        });
 
         FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
         if (currentUser != null && currentUser.getEmail() != null) {
