@@ -3,7 +3,6 @@ package com.example.projectkrs.activities;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.Handler;
 import android.view.Gravity;
 import android.view.ViewGroup;
 import android.view.animation.AlphaAnimation;
@@ -26,7 +25,9 @@ import com.android.volley.toolbox.Volley;
 import com.bumptech.glide.Glide;
 import com.example.projectkrs.R;
 import com.example.projectkrs.adapters.CommentAdapter;
+import com.example.projectkrs.adapters.RecommendationAdapter;
 import com.example.projectkrs.model.Comment;
+import com.example.projectkrs.model.PlaceRecommendation;
 import com.google.android.libraries.places.api.model.PhotoMetadata;
 import com.google.android.libraries.places.api.model.Place;
 import com.google.firebase.auth.FirebaseAuth;
@@ -37,6 +38,10 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -48,6 +53,10 @@ public class PostDetailActivity extends AppCompatActivity {
     private RecyclerView recyclerViewComments;
     private CommentAdapter commentAdapter;
     private List<Comment> commentList = new ArrayList<>();
+
+    private RecyclerView recyclerViewRecommendations;
+    private RecommendationAdapter recommendationAdapter;
+    private List<PlaceRecommendation> recommendationList = new ArrayList<>();
 
     private Button btnWant, btnVisited;
     private FirebaseFirestore db;
@@ -84,6 +93,22 @@ public class PostDetailActivity extends AppCompatActivity {
         commentAdapter = new CommentAdapter(commentList);
         recyclerViewComments.setAdapter(commentAdapter);
 
+        // RecyclerView Recommendations
+        recyclerViewRecommendations = findViewById(R.id.recyclerViewRecommendations);
+        recyclerViewRecommendations.setLayoutManager(
+                new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        );
+        recommendationAdapter = new RecommendationAdapter(
+                this,
+                recommendationList,
+                placeRecommendation -> {
+                    Intent intent = new Intent(PostDetailActivity.this, PostDetailActivity.class);
+                    intent.putExtra("placeRecommendation", placeRecommendation);
+                    startActivity(intent);
+                }
+        );
+        recyclerViewRecommendations.setAdapter(recommendationAdapter);
+
         // Place info
         textViewTitle.setText(place.getName());
         textViewDescription.setText(place.getAddress());
@@ -95,9 +120,11 @@ public class PostDetailActivity extends AppCompatActivity {
         // Google Maps button
         openMapsButton.setOnClickListener(v -> {
             if (place.getLatLng() != null) {
+                double lat = place.getLatLng().latitude;
+                double lng = place.getLatLng().longitude;
                 Uri gmmIntentUri = Uri.parse(
-                        "geo:" + place.getLatLng().latitude + "," + place.getLatLng().longitude +
-                                "?q=" + place.getLatLng().latitude + "," + place.getLatLng().longitude +
+                        "geo:" + lat + "," + lng +
+                                "?q=" + lat + "," + lng +
                                 "(" + place.getName() + ")"
                 );
                 Intent mapIntent = new Intent(Intent.ACTION_VIEW, gmmIntentUri);
@@ -118,6 +145,9 @@ public class PostDetailActivity extends AppCompatActivity {
 
         // Disable visited button if already visited
         checkIfAlreadyVisited();
+
+        // Load nearby recommendations
+        loadNearbyRecommendations();
     }
 
     private void loadPlaceMainImage(ImageView imageView) {
@@ -142,7 +172,6 @@ public class PostDetailActivity extends AppCompatActivity {
         data.put("lat", place.getLatLng().latitude);
         data.put("lng", place.getLatLng().longitude);
 
-        // Save photoReferences
         List<PhotoMetadata> photos = place.getPhotoMetadatas();
         if (photos != null && !photos.isEmpty()) {
             List<String> photoRefs = new ArrayList<>();
@@ -166,21 +195,17 @@ public class PostDetailActivity extends AppCompatActivity {
                             .addOnSuccessListener(aVoid -> {
 
                                 if (status.equals("visited") && firstVisit) {
-                                    // Add 10 points
                                     db.collection("users").document(userId)
                                             .update("points", FieldValue.increment(10));
 
-                                    // Mark as added
                                     db.collection("users")
                                             .document(userId)
                                             .collection("places")
                                             .document(place.getId())
                                             .update("visitedPointsAdded", true);
 
-                                    // Disable button
                                     btnVisited.setEnabled(false);
 
-                                    // Show +10 animation
                                     showPointsAnimation("+10", R.drawable.ic_diamond);
                                 }
 
@@ -199,18 +224,14 @@ public class PostDetailActivity extends AppCompatActivity {
                 ViewGroup.LayoutParams.MATCH_PARENT
         );
         animationLayout.setLayoutParams(params);
-        animationLayout.setBackgroundColor(0x88000000); // translucent black
+        animationLayout.setBackgroundColor(0x88000000);
 
-        // Diamond icon
         ImageView icon = new ImageView(this);
         icon.setImageResource(iconResId);
-        FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(
-                300, 300
-        );
+        FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(300, 300);
         iconParams.gravity = Gravity.CENTER;
         icon.setLayoutParams(iconParams);
 
-        // Text
         TextView tv = new TextView(this);
         tv.setText(text);
         tv.setTextSize(48f);
@@ -220,14 +241,13 @@ public class PostDetailActivity extends AppCompatActivity {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        tvParams.gravity = Gravity.CENTER_HORIZONTAL | Gravity.CENTER_VERTICAL;
+        tvParams.gravity = Gravity.CENTER;
         tv.setLayoutParams(tvParams);
 
         animationLayout.addView(icon);
         animationLayout.addView(tv);
         rootLayout.addView(animationLayout);
 
-        // Fade in/out animation
         Animation fadeIn = new AlphaAnimation(0f, 1f);
         fadeIn.setDuration(300);
         Animation fadeOut = new AlphaAnimation(1f, 0f);
@@ -287,5 +307,65 @@ public class PostDetailActivity extends AppCompatActivity {
                 error -> Toast.makeText(this, "Klaida gaunant komentarus", Toast.LENGTH_SHORT).show()
         );
         queue.add(request);
+    }
+
+    // Horizontal recommendations loader
+    private void loadNearbyRecommendations() {
+        if (place.getLatLng() == null) return;
+        double lat = place.getLatLng().latitude;
+        double lng = place.getLatLng().longitude;
+
+        new Thread(() -> {
+            try {
+                String urlString = "https://maps.googleapis.com/maps/api/place/nearbysearch/json" +
+                        "?location=" + lat + "," + lng +
+                        "&radius=5000" +
+                        "&language=lt" +
+                        "&type=tourist_attraction" +
+                        "&key=" + getString(R.string.places_api_key);
+
+                URL url = new URL(urlString);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+
+                StringBuilder response = new StringBuilder();
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) response.append(line);
+                }
+
+                JSONArray results = new JSONObject(response.toString()).getJSONArray("results");
+                runOnUiThread(() -> {
+                    recommendationList.clear();
+                    for (int i = 0; i < results.length(); i++) {
+                        try {
+                            JSONObject obj = results.getJSONObject(i);
+                            String name = obj.getString("name");
+                            JSONObject loc = obj.getJSONObject("geometry").getJSONObject("location");
+                            String placeId = obj.getString("place_id");
+                            String address = obj.optString("vicinity", "");
+                            String photoUrl = null;
+
+                            JSONArray photos = obj.optJSONArray("photos");
+                            if (photos != null && photos.length() > 0) {
+                                JSONObject photoObj = photos.getJSONObject(0);
+                                String photoRef = photoObj.getString("photo_reference");
+                                photoUrl = "https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference="
+                                        + photoRef + "&key=" + getString(R.string.places_api_key);
+                            }
+
+                            PlaceRecommendation rec = new PlaceRecommendation(
+                                    name, placeId, address,
+                                    loc.getDouble("lat"), loc.getDouble("lng"),
+                                    photoUrl
+                            );
+                            recommendationList.add(rec);
+                        } catch (Exception ignored) {}
+                    }
+                    recommendationAdapter.notifyDataSetChanged();
+                });
+
+            } catch (Exception e) { e.printStackTrace(); }
+        }).start();
     }
 }
