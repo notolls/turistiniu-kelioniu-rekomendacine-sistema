@@ -274,7 +274,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
             uriBuilder.append("&waypoints=");
             for (int i = 1; i < routePoints.size() - 1; i++) {
                 LatLng waypoint = routePoints.get(i);
-                if (i > 1) uriBuilder.append('%7C');
+                if (i > 1) uriBuilder.append('|');
                 uriBuilder.append(waypoint.latitude).append(',').append(waypoint.longitude);
             }
         }
