@@ -25,7 +25,7 @@ public class RainView extends View {
         paint.setColor(0x88FFFFFF);
         paint.setStrokeWidth(3f);
 
-        for (int i = 0; i < 120; i++) {
+        for (int i = 0; i < getInitialDropCount(); i++) {
             Drop d = new Drop();
             d.x = random.nextInt(1000);
             d.y = random.nextInt(2000);
@@ -35,12 +35,21 @@ public class RainView extends View {
         }
     }
 
+
+    static int getInitialDropCount() {
+        return 120;
+    }
+
+    static boolean shouldResetDrop(float currentY, int viewHeight) {
+        return currentY > viewHeight;
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         for (Drop d : drops) {
             canvas.drawLine(d.x, d.y, d.x, d.y + d.length, paint);
             d.y += d.speed;
-            if (d.y > getHeight()) {
+            if (shouldResetDrop(d.y, getHeight())) {
                 d.y = 0;
                 d.x = random.nextInt(getWidth());
             }

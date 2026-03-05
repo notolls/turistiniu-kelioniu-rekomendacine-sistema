@@ -19,6 +19,7 @@ import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class RegisterActivity extends AppCompatActivity {
@@ -45,15 +46,7 @@ public class RegisterActivity extends AppCompatActivity {
         categorySpinner = findViewById(R.id.categorySpinner);
 
         // Kategorijų sąrašas
-        categoryTypesMap = new HashMap<>();
-        categoryTypesMap.put("Kavinės", "cafe");
-        categoryTypesMap.put("Restoranai", "restaurant");
-        categoryTypesMap.put("Muziejai", "museum");
-        categoryTypesMap.put("Autobusų stotys", "bus_station");
-        categoryTypesMap.put("Traukinių stotys", "train_station");
-        categoryTypesMap.put("Parkai", "park");
-        categoryTypesMap.put("Prekybos centrai", "shopping_mall");
-        categoryTypesMap.put("Bendros lankytinos vietos", "tourist_attraction");
+        categoryTypesMap = buildCategoryTypesMap();
 
         categoryAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new ArrayList<>(categoryTypesMap.keySet()));
         categoryAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
@@ -67,13 +60,34 @@ public class RegisterActivity extends AppCompatActivity {
         });
     }
 
+
+    static Map<String, String> buildCategoryTypesMap() {
+        Map<String, String> map = new LinkedHashMap<>();
+        map.put("Kavinės", "cafe");
+        map.put("Restoranai", "restaurant");
+        map.put("Muziejai", "museum");
+        map.put("Autobusų stotys", "bus_station");
+        map.put("Traukinių stotys", "train_station");
+        map.put("Parkai", "park");
+        map.put("Prekybos centrai", "shopping_mall");
+        map.put("Bendros lankytinos vietos", "tourist_attraction");
+        return map;
+    }
+
+    static String resolveCategoryType(Map<String, String> categoryTypesMap, String selectedCategoryLabel) {
+        if (categoryTypesMap == null || selectedCategoryLabel == null) {
+            return null;
+        }
+        return categoryTypesMap.get(selectedCategoryLabel);
+    }
+
     private void registerUser() {
         String email = editTextEmail.getText().toString();
         String password = editTextPassword.getText().toString();
         final String selectedCategory;
 
         if (categorySpinner.getSelectedItem() != null) {
-            selectedCategory = categoryTypesMap.get(categorySpinner.getSelectedItem().toString());
+            selectedCategory = resolveCategoryType(categoryTypesMap, categorySpinner.getSelectedItem().toString());
         } else {
             Toast.makeText(this, "Pasirinkite kategoriją", Toast.LENGTH_SHORT).show();
             return;

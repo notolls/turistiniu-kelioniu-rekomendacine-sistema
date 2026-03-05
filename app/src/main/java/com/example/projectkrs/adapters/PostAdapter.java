@@ -75,6 +75,10 @@ public class PostAdapter<T> extends RecyclerView.Adapter<PostAdapter.PostViewHol
         return itemsList.size();
     }
 
+    static String formatPlaceWithDistanceLabel(String placeName, double distanceMeters) {
+        return placeName + " - " + String.format("%.2f Kilometrai", distanceMeters / 1000);
+    }
+
     public static class PostViewHolder extends RecyclerView.ViewHolder {
 
         ImageView imageView;
@@ -145,7 +149,7 @@ public class PostAdapter<T> extends RecyclerView.Adapter<PostAdapter.PostViewHol
             }
 
             // Nustatyti pavadinimą ir atstumą
-            nameTextView.setText(place.getName() + " - " + String.format("%.2f Kilometrai", distance/1000));
+            nameTextView.setText(formatPlaceWithDistanceLabel(place.getName(), distance));
 
         }
 
