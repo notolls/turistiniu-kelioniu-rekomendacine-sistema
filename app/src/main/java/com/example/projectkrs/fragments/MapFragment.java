@@ -1,7 +1,10 @@
 package com.example.projectkrs.fragments;
 
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -11,7 +14,9 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.Spinner;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -41,7 +46,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     private GoogleMap mMap;
     private LatLng userLocation;
     private Spinner categorySpinner;
-    private Button btnToggleVisited, btnWeather;
+    private Button btnToggleVisited, btnWeather, btnAddToRoute, btnOpenRoute;
     private WeatherOverlayView weatherOverlay;
 
     private WeatherOverlayView.WeatherType currentWeather = WeatherOverlayView.WeatherType.NONE;
@@ -63,7 +68,10 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     private String viewUserId = null;
     private TileOverlay heatmapOverlay;
     private boolean heatmapVisible = false;
-    private List<WeightedLatLng> heatList = new ArrayList<>();
+    private final List<WeightedLatLng> heatList = new ArrayList<>();
+    private final List<LatLng> routePoints = new ArrayList<>();
+    private Marker selectedMarker;
+    private final Map<String, Bitmap> photoCache = new HashMap<>();
 
     @Nullable
     @Override
@@ -75,6 +83,8 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
         categorySpinner = view.findViewById(R.id.categorySpinner);
         btnToggleVisited = view.findViewById(R.id.btnToggleVisited);
         btnWeather = view.findViewById(R.id.btnWeather);
+        btnAddToRoute = view.findViewById(R.id.btnAddToRoute);
+        btnOpenRoute = view.findViewById(R.id.btnOpenRoute);
         weatherOverlay = view.findViewById(R.id.weatherOverlay);
 
         if (getArguments() != null) {
@@ -111,6 +121,9 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
 
         btnToggleVisited.setOnClickListener(v -> toggleHeatmap());
 
+        btnAddToRoute.setOnClickListener(v -> addSelectedMarkerToRoute());
+        btnOpenRoute.setOnClickListener(v -> openRouteInGoogleMaps());
+
         // Weather button ciklas
         btnWeather.setOnClickListener(v -> {
             weatherIndex = (weatherIndex + 1) % weatherTypes.length;
@@ -130,6 +143,15 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     @Override
     public void onMapReady(@NonNull GoogleMap googleMap) {
         mMap = googleMap;
+        setupInfoWindowAdapter();
+        mMap.setOnMarkerClickListener(marker -> {
+            selectedMarker = marker;
+            if (viewUserId == null) {
+                btnAddToRoute.setVisibility(View.VISIBLE);
+            }
+            marker.showInfoWindow();
+            return false;
+        });
 
         if (viewUserId != null) {
             loadVisitedPlacesOfUser(viewUserId);
@@ -140,6 +162,79 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
             mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(userLocation, 12f));
             fetchNearbyPlaces(userLocation);
         }
+    }
+
+    private void setupInfoWindowAdapter() {
+        mMap.setInfoWindowAdapter(new GoogleMap.InfoWindowAdapter() {
+            @Override
+            public View getInfoWindow(@NonNull Marker marker) {
+                return null;
+            }
+
+            @Override
+            public View getInfoContents(@NonNull Marker marker) {
+                View infoView = LayoutInflater.from(requireContext())
+                        .inflate(R.layout.item_map_info_window, null);
+
+                TextView tvTitle = infoView.findViewById(R.id.tvInfoTitle);
+                TextView tvAddress = infoView.findViewById(R.id.tvInfoAddress);
+                ImageView ivPhoto = infoView.findViewById(R.id.ivInfoPhoto);
+
+                tvTitle.setText(marker.getTitle());
+
+                PlaceInfo placeInfo = marker.getTag() instanceof PlaceInfo
+                        ? (PlaceInfo) marker.getTag()
+                        : null;
+
+                if (placeInfo == null) {
+                    tvAddress.setVisibility(View.GONE);
+                    ivPhoto.setVisibility(View.GONE);
+                    return infoView;
+                }
+
+                if (placeInfo.address == null || placeInfo.address.isEmpty()) {
+                    tvAddress.setVisibility(View.GONE);
+                } else {
+                    tvAddress.setVisibility(View.VISIBLE);
+                    tvAddress.setText(placeInfo.address);
+                }
+
+                if (placeInfo.photoUrl == null || placeInfo.photoUrl.isEmpty()) {
+                    ivPhoto.setVisibility(View.GONE);
+                    return infoView;
+                }
+
+                Bitmap cached = photoCache.get(placeInfo.photoUrl);
+                if (cached != null) {
+                    ivPhoto.setVisibility(View.VISIBLE);
+                    ivPhoto.setImageBitmap(cached);
+                    return infoView;
+                }
+
+                ivPhoto.setVisibility(View.GONE);
+                loadInfoWindowPhoto(marker, placeInfo.photoUrl);
+                return infoView;
+            }
+        });
+    }
+
+    private void loadInfoWindowPhoto(Marker marker, String photoUrl) {
+        new Thread(() -> {
+            try {
+                URL url = new URL(photoUrl);
+                Bitmap bitmap = BitmapFactory.decodeStream(url.openConnection().getInputStream());
+                if (bitmap != null) {
+                    photoCache.put(photoUrl, bitmap);
+                    mainHandler.post(() -> {
+                        if (marker.isInfoWindowShown()) {
+                            marker.showInfoWindow();
+                        }
+                    });
+                }
+            } catch (Exception e) {
+                Log.e("MapFragment", "Info window photo load error", e);
+            }
+        }).start();
     }
 
     // ===============================
@@ -168,6 +263,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
                     if (!isAdded() || mMap == null) return;
 
                     mMap.clear();
+                    resetRouteState();
                     heatList.clear();
 
                     for (DocumentSnapshot doc : query.getDocuments()) {
@@ -227,6 +323,57 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
         }
     }
 
+    private void addSelectedMarkerToRoute() {
+        if (selectedMarker == null) return;
+
+        LatLng point = selectedMarker.getPosition();
+        for (LatLng routePoint : routePoints) {
+            if (routePoint.latitude == point.latitude && routePoint.longitude == point.longitude) {
+                return;
+            }
+        }
+
+        routePoints.add(point);
+        btnOpenRoute.setVisibility(routePoints.size() >= 2 ? View.VISIBLE : View.GONE);
+    }
+
+    private void openRouteInGoogleMaps() {
+        if (routePoints.size() < 2 || getContext() == null) return;
+
+        LatLng origin = routePoints.get(0);
+        LatLng destination = routePoints.get(routePoints.size() - 1);
+
+        StringBuilder uriBuilder = new StringBuilder("https://www.google.com/maps/dir/?api=1");
+        uriBuilder.append("&origin=").append(origin.latitude).append(',').append(origin.longitude);
+        uriBuilder.append("&destination=").append(destination.latitude).append(',').append(destination.longitude);
+        uriBuilder.append("&travelmode=walking");
+
+        if (routePoints.size() > 2) {
+            uriBuilder.append("&waypoints=");
+            for (int i = 1; i < routePoints.size() - 1; i++) {
+                LatLng waypoint = routePoints.get(i);
+                if (i > 1) uriBuilder.append('|');
+                uriBuilder.append(waypoint.latitude).append(',').append(waypoint.longitude);
+            }
+        }
+
+        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(uriBuilder.toString()));
+        intent.setPackage("com.google.android.apps.maps");
+
+        if (intent.resolveActivity(requireContext().getPackageManager()) == null) {
+            intent.setPackage(null);
+        }
+
+        startActivity(intent);
+    }
+
+    private void resetRouteState() {
+        routePoints.clear();
+        selectedMarker = null;
+        if (btnAddToRoute != null) btnAddToRoute.setVisibility(View.GONE);
+        if (btnOpenRoute != null) btnOpenRoute.setVisibility(View.GONE);
+    }
+
     private void fetchNearbyPlaces(LatLng location) {
         new Thread(() -> {
             try {
@@ -253,6 +400,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
                 mainHandler.post(() -> {
                     if (!isAdded() || mMap == null) return;
                     mMap.clear();
+                    resetRouteState();
 
                     int markerResId = getResources().getIdentifier(selectedMarkerDrawable, "drawable", requireContext().getPackageName());
                     Bitmap markerBitmap = getBitmapFromVector(markerResId);
@@ -261,14 +409,30 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
                         try {
                             JSONObject obj = results.getJSONObject(i);
                             String name = obj.getString("name");
+                            String address = obj.optString("vicinity", "");
                             JSONObject loc = obj.getJSONObject("geometry").getJSONObject("location");
                             LatLng pos = new LatLng(loc.getDouble("lat"), loc.getDouble("lng"));
+
+                            String photoUrl = "";
+                            JSONArray photos = obj.optJSONArray("photos");
+                            if (photos != null && photos.length() > 0) {
+                                String photoReference = photos.getJSONObject(0).optString("photo_reference", "");
+                                if (!photoReference.isEmpty()) {
+                                    photoUrl = "https://maps.googleapis.com/maps/api/place/photo" +
+                                            "?maxwidth=400" +
+                                            "&photo_reference=" + photoReference +
+                                            "&key=" + getString(R.string.places_api_key);
+                                }
+                            }
 
                             MarkerOptions markerOptions = new MarkerOptions().position(pos).title(name);
                             if (markerBitmap != null)
                                 markerOptions.icon(BitmapDescriptorFactory.fromBitmap(markerBitmap));
 
-                            mMap.addMarker(markerOptions);
+                            Marker marker = mMap.addMarker(markerOptions);
+                            if (marker != null) {
+                                marker.setTag(new PlaceInfo(address, photoUrl));
+                            }
 
                         } catch (Exception e) { Log.e("MapFragment", "Marker error", e); }
                     }
@@ -276,5 +440,15 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
 
             } catch (Exception e) { Log.e("MapFragment", "Fetch error", e); }
         }).start();
+    }
+
+    private static class PlaceInfo {
+        final String address;
+        final String photoUrl;
+
+        PlaceInfo(String address, String photoUrl) {
+            this.address = address;
+            this.photoUrl = photoUrl;
+        }
     }
 }

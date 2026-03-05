@@ -3,5 +3,7 @@
     <string name="places_api_key">AIzaSyD-hfRYPGjrHvZWQKPeWOyPTK-nCQQ86B4</string>
     <string name="google_maps_key">AIzaSyD-hfRYPGjrHvZWQKPeWOyPTK-nCQQ86B4</string>
 
+    <string name="add_to_route">Pridėti į maršrutą</string>
+    <string name="open_route">Peržiūrėti maršrutą Google Maps</string>
 
 </resources>

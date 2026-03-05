@@ -65,6 +65,31 @@
         android:iconifiedByDefault="false"
         android:layout_marginBottom="8dp"/>
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:id="@+id/textResultCount"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Rasta: 0"
+            android:textStyle="bold"
+            android:textSize="14sp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/buttonSort"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Arčiausi"
+            app:cornerRadius="16dp" />
+    </LinearLayout>
+
     <!-- RecyclerView su vietomis -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/searchRecyclerView"
