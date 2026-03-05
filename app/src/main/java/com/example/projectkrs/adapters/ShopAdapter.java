@@ -44,7 +44,7 @@ public class ShopAdapter extends RecyclerView.Adapter<ShopAdapter.ViewHolder> {
         Context context = holder.itemView.getContext();
 
         holder.name.setText(marker.getName());
-        holder.price.setText(marker.getPrice() + " pts");
+        holder.price.setText(formatPrice(marker.getPrice()));
 
         int resId = context.getResources().getIdentifier(
                 marker.getDrawable(),
@@ -60,6 +60,10 @@ public class ShopAdapter extends RecyclerView.Adapter<ShopAdapter.ViewHolder> {
 
     @Override
     public int getItemCount() { return markers.size(); }
+
+    static String formatPrice(int price) {
+        return price + " pts";
+    }
 
     static class ViewHolder extends RecyclerView.ViewHolder {
         ImageView icon;

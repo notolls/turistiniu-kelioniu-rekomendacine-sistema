@@ -50,7 +50,7 @@ public class ImageSliderAdapter extends RecyclerView.Adapter<ImageSliderAdapter.
             PhotoMetadata photoMetadata = photoMetadataList.get(0); // gauti pirma paveikslėlį
             String photoReference = photoMetadata.zzb(); // gauti photo reference
             String apiKey = context.getString(R.string.places_api_key); // API raktas iš strings.xml
-            String photoUrl = "https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=" + photoReference + "&key=" + apiKey;
+            String photoUrl = buildGooglePhotoUrl(photoReference, apiKey);
             Glide.with(holder.itemView)
                     .load(photoUrl)
                     .apply(RequestOptions.centerCropTransform())
@@ -64,6 +64,10 @@ public class ImageSliderAdapter extends RecyclerView.Adapter<ImageSliderAdapter.
     @Override
     public int getItemCount() {
         return placesList.size();
+    }
+
+    static String buildGooglePhotoUrl(String photoReference, String apiKey) {
+        return "https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=" + photoReference + "&key=" + apiKey;
     }
 
     public static class ViewHolder extends RecyclerView.ViewHolder {

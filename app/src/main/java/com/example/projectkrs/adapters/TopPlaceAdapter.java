@@ -32,12 +32,16 @@ public class TopPlaceAdapter extends RecyclerView.Adapter<TopPlaceAdapter.TopPla
     public void onBindViewHolder(@NonNull TopPlaceViewHolder holder, int position) {
         PlaceWithCount place = placeList.get(position);
         holder.tvPlaceName.setText(place.getName());
-        holder.tvCount.setText("Lankyta: " + place.getCount());
+        holder.tvCount.setText(formatVisitCount(place.getCount()));
     }
 
     @Override
     public int getItemCount() {
         return placeList.size();
+    }
+
+    static String formatVisitCount(int count) {
+        return "Lankyta: " + count;
     }
 
     static class TopPlaceViewHolder extends RecyclerView.ViewHolder {

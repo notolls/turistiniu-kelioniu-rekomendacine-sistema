@@ -46,7 +46,7 @@ public class RecommendationAdapter extends RecyclerView.Adapter<RecommendationAd
         holder.textViewName.setText(place.getName());
 
         // Nuotrauka iš photoUrl
-        if (place.getPhotoUrl() != null && !place.getPhotoUrl().isEmpty()) {
+        if (hasPhotoUrl(place.getPhotoUrl())) {
             Glide.with(context).load(place.getPhotoUrl()).into(holder.imageView);
         } else {
             // Jei nuotrauka nerasta, rodyti default
@@ -59,6 +59,10 @@ public class RecommendationAdapter extends RecyclerView.Adapter<RecommendationAd
     @Override
     public int getItemCount() {
         return recommendations.size();
+    }
+
+    static boolean hasPhotoUrl(String photoUrl) {
+        return photoUrl != null && !photoUrl.isEmpty();
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {
