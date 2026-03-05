@@ -28,6 +28,7 @@ import com.example.projectkrs.adapters.CommentAdapter;
 import com.example.projectkrs.adapters.RecommendationAdapter;
 import com.example.projectkrs.model.Comment;
 import com.example.projectkrs.model.PlaceRecommendation;
+import com.example.projectkrs.utils.UserBackgroundHelper;
 import com.google.android.libraries.places.api.model.PhotoMetadata;
 import com.google.android.libraries.places.api.model.Place;
 import com.google.firebase.auth.FirebaseAuth;
@@ -66,6 +67,7 @@ public class PostDetailActivity extends AppCompatActivity {
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_post_detail);
+        UserBackgroundHelper.applySelectedBackground(this);
 
         place = getIntent().getParcelableExtra("place");
         if (place == null) { finish(); return; }
