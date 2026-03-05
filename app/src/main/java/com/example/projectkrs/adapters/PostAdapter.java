@@ -21,6 +21,7 @@ public class PostAdapter<T> extends RecyclerView.Adapter<PostAdapter.PostViewHol
 
     private List<T> itemsList;
     private OnItemClickListener mListener;
+    private int lastAnimatedPosition = -1;
 
     public interface OnItemClickListener {
         void onItemClick(int position);
@@ -55,6 +56,17 @@ public class PostAdapter<T> extends RecyclerView.Adapter<PostAdapter.PostViewHol
             holder.bind((Place) item);
         } else if (item instanceof PlaceWithDistance) {
             holder.bind((PlaceWithDistance) item);
+        }
+
+        if (position > lastAnimatedPosition) {
+            holder.itemView.setAlpha(0f);
+            holder.itemView.setTranslationY(30f);
+            holder.itemView.animate()
+                    .alpha(1f)
+                    .translationY(0f)
+                    .setDuration(300)
+                    .start();
+            lastAnimatedPosition = position;
         }
     }
 

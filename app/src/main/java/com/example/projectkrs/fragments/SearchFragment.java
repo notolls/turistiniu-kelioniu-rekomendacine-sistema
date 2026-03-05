@@ -7,6 +7,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.SearchView;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -54,7 +55,11 @@ public class SearchFragment extends Fragment implements PostAdapter.OnItemClickL
     private FirebaseFirestore db;
 
     private MaterialButton buttonAll, buttonWant, buttonVisited;
+    private MaterialButton buttonSort;
+    private TextView textResultCount;
     private String currentFilter = "all"; // "all", "want", "visited"
+    private boolean sortAscending = true;
+    private String currentQuery = "";
 
     @Nullable
     @Override
@@ -78,6 +83,8 @@ public class SearchFragment extends Fragment implements PostAdapter.OnItemClickL
         buttonAll = view.findViewById(R.id.buttonAll);
         buttonWant = view.findViewById(R.id.buttonWant);
         buttonVisited = view.findViewById(R.id.buttonVisited);
+        buttonSort = view.findViewById(R.id.buttonSort);
+        textResultCount = view.findViewById(R.id.textResultCount);
 
         buttonAll.setOnClickListener(v -> {
             currentFilter = "all";
@@ -99,6 +106,14 @@ public class SearchFragment extends Fragment implements PostAdapter.OnItemClickL
 
         highlightSelectedButton(buttonAll); // initial highlight
 
+        buttonSort.setOnClickListener(v -> {
+            sortAscending = !sortAscending;
+            updateSortButtonText();
+            applyFilter();
+        });
+
+        updateSortButtonText();
+
         // Places API initialization
         if (!Places.isInitialized()) {
             Places.initialize(requireContext(), getString(R.string.places_api_key));
@@ -109,14 +124,16 @@ public class SearchFragment extends Fragment implements PostAdapter.OnItemClickL
         searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             @Override
             public boolean onQueryTextSubmit(String query) {
+                currentQuery = query != null ? query.trim() : "";
+                applyFilter();
                 performSearch(query);
                 return true;
             }
 
             @Override
             public boolean onQueryTextChange(String newText) {
-                searchResults.clear();
-                searchAdapter.notifyDataSetChanged();
+                currentQuery = newText != null ? newText.trim() : "";
+                applyFilter();
                 return true;
             }
         });
@@ -134,6 +151,10 @@ public class SearchFragment extends Fragment implements PostAdapter.OnItemClickL
 
         // Highlight selected button
         selectedButton.setBackgroundColor(getResources().getColor(R.color.purple_200));
+    }
+
+    private void updateSortButtonText() {
+        buttonSort.setText(sortAscending ? "Arčiausi" : "Tolimiausi");
     }
 
     private void loadUserPlacesFromFirestore() {
@@ -169,7 +190,9 @@ public class SearchFragment extends Fragment implements PostAdapter.OnItemClickL
                                 }
 
                                 Place place = builder.build();
-                                double distance = SphericalUtil.computeDistanceBetween(userLocation, place.getLatLng());
+                                double distance = userLocation != null
+                                        ? SphericalUtil.computeDistanceBetween(userLocation, place.getLatLng())
+                                        : 0;
                                 PlaceWithDistance pwd = new PlaceWithDistance(place, distance);
                                 pwd.setStatus(status);
                                 allUserPlaces.add(pwd);
@@ -186,12 +209,34 @@ public class SearchFragment extends Fragment implements PostAdapter.OnItemClickL
     private void applyFilter() {
         searchResults.clear();
         for (PlaceWithDistance pwd : allUserPlaces) {
-            if ("all".equals(currentFilter) || pwd.getStatus().equals(currentFilter)) {
-                searchResults.add(pwd);
+            boolean matchesFilter = "all".equals(currentFilter) || pwd.getStatus().equals(currentFilter);
+            String placeName = pwd.getPlace().getName();
+            boolean matchesQuery = currentQuery.isEmpty() || (placeName != null
+                    && placeName.toLowerCase().contains(currentQuery.toLowerCase()));
+
+            if (matchesFilter && matchesQuery) {
+                if (!containsPlace(searchResults, pwd.getPlace().getId())) {
+                    searchResults.add(pwd);
+                }
             }
         }
-        Collections.sort(searchResults, Comparator.comparingDouble(PlaceWithDistance::getDistance));
+        Comparator<PlaceWithDistance> comparator = Comparator.comparingDouble(PlaceWithDistance::getDistance);
+        if (!sortAscending) {
+            comparator = comparator.reversed();
+        }
+        Collections.sort(searchResults, comparator);
         searchAdapter.notifyDataSetChanged();
+        textResultCount.setText("Rasta: " + searchResults.size());
+    }
+
+    private boolean containsPlace(List<PlaceWithDistance> places, String placeId) {
+        if (placeId == null) return false;
+        for (PlaceWithDistance item : places) {
+            if (placeId.equals(item.getPlace().getId())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -206,8 +251,14 @@ public class SearchFragment extends Fragment implements PostAdapter.OnItemClickL
         PlacesClient placesClient = Places.createClient(requireContext());
         FindAutocompletePredictionsRequest request = FindAutocompletePredictionsRequest.builder()
                 .setQuery(query)
-                .setLocationBias(RectangularBounds.newInstance(LatLngBounds.builder().include(userLocation).build()))
                 .build();
+
+        if (userLocation != null) {
+            request = FindAutocompletePredictionsRequest.builder()
+                    .setQuery(query)
+                    .setLocationBias(RectangularBounds.newInstance(LatLngBounds.builder().include(userLocation).build()))
+                    .build();
+        }
 
         placesClient.findAutocompletePredictions(request).addOnCompleteListener(task -> {
             if (task.isSuccessful() && task.getResult() != null) {
@@ -229,12 +280,16 @@ public class SearchFragment extends Fragment implements PostAdapter.OnItemClickL
         placesClient.fetchPlace(request).addOnCompleteListener(task -> {
             if (task.isSuccessful() && task.getResult() != null) {
                 Place place = task.getResult().getPlace();
-                double distance = SphericalUtil.computeDistanceBetween(userLocation, place.getLatLng());
+                double distance = userLocation != null
+                        ? SphericalUtil.computeDistanceBetween(userLocation, place.getLatLng())
+                        : 0;
                 PlaceWithDistance pwd = new PlaceWithDistance(place, distance);
                 pwd.setStatus("all"); // naujos vietos status default "all"
-                searchResults.add(pwd);
-                Collections.sort(searchResults, Comparator.comparingDouble(PlaceWithDistance::getDistance));
-                searchAdapter.notifyDataSetChanged();
+
+                if (!containsPlace(allUserPlaces, place.getId())) {
+                    allUserPlaces.add(pwd);
+                }
+                applyFilter();
             }
         });
     }
