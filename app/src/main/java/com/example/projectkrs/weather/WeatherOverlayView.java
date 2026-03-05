@@ -30,15 +30,17 @@ public class WeatherOverlayView extends View {
     public void setWeather(WeatherType type) {
         weatherType = type;
         particles.clear();
-        if (weatherType == WeatherType.RAIN) initRain();
-        else if (weatherType == WeatherType.SNOW) initSnow();
+        if (hasParticles(weatherType)) {
+            if (weatherType == WeatherType.RAIN) initRain();
+            else if (weatherType == WeatherType.SNOW) initSnow();
+        }
         invalidate();
     }
 
     private void initRain() {
         paint.setColor(0x88FFFFFF);
         paint.setStrokeWidth(3f);
-        for (int i = 0; i < 120; i++) {
+        for (int i = 0; i < getParticleCountForWeather(WeatherType.RAIN); i++) {
             Particle p = new Particle();
             p.x = random.nextInt(1000);
             p.y = random.nextInt(2000);
@@ -51,7 +53,7 @@ public class WeatherOverlayView extends View {
     private void initSnow() {
         paint.setColor(0xCCFFFFFF);
         paint.setStrokeWidth(2f);
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < getParticleCountForWeather(WeatherType.SNOW); i++) {
             Particle p = new Particle();
             p.x = random.nextInt(1000);
             p.y = random.nextInt(2000);
@@ -59,6 +61,27 @@ public class WeatherOverlayView extends View {
             p.length = 10 + random.nextInt(10);
             particles.add(p);
         }
+    }
+
+
+    static int getParticleCountForWeather(WeatherType type) {
+        if (type == WeatherType.RAIN) return 120;
+        if (type == WeatherType.SNOW) return 100;
+        return 0;
+    }
+
+    static boolean hasParticles(WeatherType type) {
+        return type == WeatherType.RAIN || type == WeatherType.SNOW;
+    }
+
+    static boolean isOverlayOnly(WeatherType type) {
+        return type == WeatherType.NIGHT || type == WeatherType.SUN;
+    }
+
+    static int getOverlayColor(WeatherType type) {
+        if (type == WeatherType.NIGHT) return 0x88000044;
+        if (type == WeatherType.SUN) return 0x33FFFF00;
+        return 0;
     }
 
     @Override
@@ -84,12 +107,8 @@ public class WeatherOverlayView extends View {
         }
 
         // Night overlay
-        if (weatherType == WeatherType.NIGHT) {
-            canvas.drawColor(0x88000044);
-        }
-        // Sun overlay
-        if (weatherType == WeatherType.SUN) {
-            canvas.drawColor(0x33FFFF00);
+        if (isOverlayOnly(weatherType)) {
+            canvas.drawColor(getOverlayColor(weatherType));
         }
 
         invalidate();
