@@ -9,7 +9,6 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.Spinner;
@@ -20,11 +19,11 @@ import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
 import com.example.projectkrs.R;
+import com.example.projectkrs.weather.WeatherOverlayView;
 import com.google.android.gms.maps.*;
 import com.google.android.gms.maps.model.*;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.*;
-
 import com.google.maps.android.heatmaps.HeatmapTileProvider;
 import com.google.maps.android.heatmaps.WeightedLatLng;
 
@@ -42,7 +41,18 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     private GoogleMap mMap;
     private LatLng userLocation;
     private Spinner categorySpinner;
-    private Button btnToggleVisited;
+    private Button btnToggleVisited, btnWeather;
+    private WeatherOverlayView weatherOverlay;
+
+    private WeatherOverlayView.WeatherType currentWeather = WeatherOverlayView.WeatherType.NONE;
+    private final WeatherOverlayView.WeatherType[] weatherTypes = {
+            WeatherOverlayView.WeatherType.NONE,
+            WeatherOverlayView.WeatherType.RAIN,
+            WeatherOverlayView.WeatherType.SNOW,
+            WeatherOverlayView.WeatherType.NIGHT,
+            WeatherOverlayView.WeatherType.SUN
+    };
+    private int weatherIndex = 0;
 
     private static final int DEFAULT_RADIUS = 10000;
     private String selectedCategory = "tourist_attraction";
@@ -50,28 +60,27 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private Map<String, String> categoryTypesMap = new HashMap<>();
-
     private String viewUserId = null;
-    private TileOverlay heatmapOverlay; // heatmap overlay
-    private boolean heatmapVisible = false; // ar heatmap rodomas
+    private TileOverlay heatmapOverlay;
+    private boolean heatmapVisible = false;
     private List<WeightedLatLng> heatList = new ArrayList<>();
 
     @Nullable
     @Override
-    public View onCreateView(
-            @NonNull LayoutInflater inflater,
-            @Nullable ViewGroup container,
-            @Nullable Bundle savedInstanceState
-    ) {
+    public View onCreateView(@NonNull LayoutInflater inflater,
+                             @Nullable ViewGroup container,
+                             @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_map, container, false);
+
+        categorySpinner = view.findViewById(R.id.categorySpinner);
+        btnToggleVisited = view.findViewById(R.id.btnToggleVisited);
+        btnWeather = view.findViewById(R.id.btnWeather);
+        weatherOverlay = view.findViewById(R.id.weatherOverlay);
 
         if (getArguments() != null) {
             viewUserId = getArguments().getString("view_user_id");
             userLocation = getArguments().getParcelable("user_location");
         }
-
-        categorySpinner = view.findViewById(R.id.categorySpinner);
-        btnToggleVisited = view.findViewById(R.id.btnToggleVisited);
 
         if (viewUserId != null) {
             categorySpinner.setVisibility(View.GONE);
@@ -80,38 +89,38 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
             btnToggleVisited.setVisibility(View.GONE);
         }
 
+        // Kategorijos
         categoryTypesMap.put("Kavinės", "cafe");
         categoryTypesMap.put("Restoranai", "restaurant");
         categoryTypesMap.put("Muziejai", "museum");
         categoryTypesMap.put("Parkai", "park");
         categoryTypesMap.put("Lankytinos vietos", "tourist_attraction");
 
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(
-                requireContext(),
-                android.R.layout.simple_spinner_item,
-                new ArrayList<>(categoryTypesMap.keySet())
-        );
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(requireContext(),
+                android.R.layout.simple_spinner_item, new ArrayList<>(categoryTypesMap.keySet()));
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         categorySpinner.setAdapter(adapter);
 
-        categorySpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+        categorySpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(android.widget.AdapterView<?> parent, View v, int pos, long id) {
                 selectedCategory = categoryTypesMap.get(categorySpinner.getSelectedItem().toString());
-                if (mMap != null && userLocation != null && viewUserId == null) {
-                    fetchNearbyPlaces(userLocation);
-                }
+                if (mMap != null && userLocation != null && viewUserId == null) fetchNearbyPlaces(userLocation);
             }
-            @Override public void onNothingSelected(AdapterView<?> parent) {}
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
         });
 
         btnToggleVisited.setOnClickListener(v -> toggleHeatmap());
 
+        // Weather button ciklas
+        btnWeather.setOnClickListener(v -> {
+            weatherIndex = (weatherIndex + 1) % weatherTypes.length;
+            currentWeather = weatherTypes[weatherIndex];
+            weatherOverlay.setWeather(currentWeather);
+        });
+
         SupportMapFragment mapFragment =
                 (SupportMapFragment) getChildFragmentManager().findFragmentById(R.id.map);
-        if (mapFragment != null) {
-            mapFragment.getMapAsync(this);
-        }
+        if (mapFragment != null) mapFragment.getMapAsync(this);
 
         loadUserSelectedMarker();
 
@@ -134,51 +143,8 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     }
 
     // ===============================
-    // KITO USER VISITED + HEATMAP
+    // HEATMAP / VISITED PLACES
     // ===============================
-    private void loadVisitedPlacesOfUser(String userId) {
-        FirebaseFirestore.getInstance()
-                .collection("users")
-                .document(userId)
-                .collection("places")
-                .whereEqualTo("status", "visited")
-                .get()
-                .addOnSuccessListener(query -> {
-
-                    if (!isAdded() || mMap == null) return;
-
-                    mMap.clear();
-                    heatList.clear();
-
-                    for (DocumentSnapshot doc : query.getDocuments()) {
-
-                        Double lat = doc.getDouble("lat");
-                        Double lng = doc.getDouble("lng");
-                        String name = doc.getString("name");
-
-                        if (lat == null || lng == null) continue;
-
-                        LatLng position = new LatLng(lat, lng);
-
-                        mMap.addMarker(new MarkerOptions()
-                                .position(position)
-                                .title(name));
-
-                        heatList.add(new WeightedLatLng(position));
-                    }
-
-                    if (!query.isEmpty()) {
-                        DocumentSnapshot first = query.getDocuments().get(0);
-                        Double lat = first.getDouble("lat");
-                        Double lng = first.getDouble("lng");
-                        if (lat != null && lng != null) {
-                            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(
-                                    new LatLng(lat, lng), 10f));
-                        }
-                    }
-                });
-    }
-
     private void toggleHeatmap() {
         if (heatmapOverlay != null) {
             heatmapOverlay.remove();
@@ -194,23 +160,51 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
         }
     }
 
+    private void loadVisitedPlacesOfUser(String userId) {
+        FirebaseFirestore.getInstance()
+                .collection("users").document(userId).collection("places")
+                .whereEqualTo("status", "visited").get()
+                .addOnSuccessListener(query -> {
+                    if (!isAdded() || mMap == null) return;
+
+                    mMap.clear();
+                    heatList.clear();
+
+                    for (DocumentSnapshot doc : query.getDocuments()) {
+                        Double lat = doc.getDouble("lat");
+                        Double lng = doc.getDouble("lng");
+                        String name = doc.getString("name");
+
+                        if (lat == null || lng == null) continue;
+                        LatLng pos = new LatLng(lat, lng);
+                        mMap.addMarker(new MarkerOptions().position(pos).title(name));
+                        heatList.add(new WeightedLatLng(pos));
+                    }
+
+                    if (!query.isEmpty()) {
+                        DocumentSnapshot first = query.getDocuments().get(0);
+                        Double lat = first.getDouble("lat");
+                        Double lng = first.getDouble("lng");
+                        if (lat != null && lng != null)
+                            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(lat, lng), 10f));
+                    }
+                });
+    }
+
     // ===============================
-    // SENAS FUNKCIONALUMAS
+    // NEARBY PLACES + MARKERS
     // ===============================
     private void loadUserSelectedMarker() {
         String uid = FirebaseAuth.getInstance().getUid();
         if (uid == null) return;
 
         FirebaseFirestore.getInstance()
-                .collection("users")
-                .document(uid)
-                .get()
-                .addOnSuccessListener(doc -> {
+                .collection("users").document(uid)
+                .get().addOnSuccessListener(doc -> {
                     if (doc.exists() && doc.contains("selectedMarker")) {
                         selectedMarkerDrawable = doc.getString("selectedMarker");
-                        if (mMap != null && userLocation != null && viewUserId == null) {
+                        if (mMap != null && userLocation != null && viewUserId == null)
                             fetchNearbyPlaces(userLocation);
-                        }
                     }
                 });
     }
@@ -218,15 +212,11 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     private Bitmap getBitmapFromVector(int drawableId) {
         try {
             if (getContext() == null) return null;
-            final android.graphics.drawable.Drawable drawable =
-                    ContextCompat.getDrawable(requireContext(), drawableId);
+            android.graphics.drawable.Drawable drawable = ContextCompat.getDrawable(requireContext(), drawableId);
             if (drawable == null) return null;
 
-            Bitmap bitmap = Bitmap.createBitmap(
-                    drawable.getIntrinsicWidth(),
-                    drawable.getIntrinsicHeight(),
-                    Bitmap.Config.ARGB_8888
-            );
+            Bitmap bitmap = Bitmap.createBitmap(drawable.getIntrinsicWidth(),
+                    drawable.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
             Canvas canvas = new Canvas(bitmap);
             drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
             drawable.draw(canvas);
@@ -252,30 +242,19 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
 
-                BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(conn.getInputStream())
-                );
-
+                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
                 StringBuilder response = new StringBuilder();
                 String line;
-                while ((line = reader.readLine()) != null) {
-                    response.append(line);
-                }
+                while ((line = reader.readLine()) != null) response.append(line);
                 reader.close();
 
                 JSONArray results = new JSONObject(response.toString()).getJSONArray("results");
 
                 mainHandler.post(() -> {
                     if (!isAdded() || mMap == null) return;
-
                     mMap.clear();
 
-                    int markerResId = getResources().getIdentifier(
-                            selectedMarkerDrawable,
-                            "drawable",
-                            requireContext().getPackageName()
-                    );
-
+                    int markerResId = getResources().getIdentifier(selectedMarkerDrawable, "drawable", requireContext().getPackageName());
                     Bitmap markerBitmap = getBitmapFromVector(markerResId);
 
                     for (int i = 0; i < results.length(); i++) {
@@ -283,31 +262,19 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
                             JSONObject obj = results.getJSONObject(i);
                             String name = obj.getString("name");
                             JSONObject loc = obj.getJSONObject("geometry").getJSONObject("location");
-                            LatLng pos = new LatLng(
-                                    loc.getDouble("lat"),
-                                    loc.getDouble("lng")
-                            );
+                            LatLng pos = new LatLng(loc.getDouble("lat"), loc.getDouble("lng"));
 
-                            MarkerOptions markerOptions =
-                                    new MarkerOptions().position(pos).title(name);
-
-                            if (markerBitmap != null) {
-                                markerOptions.icon(
-                                        BitmapDescriptorFactory.fromBitmap(markerBitmap)
-                                );
-                            }
+                            MarkerOptions markerOptions = new MarkerOptions().position(pos).title(name);
+                            if (markerBitmap != null)
+                                markerOptions.icon(BitmapDescriptorFactory.fromBitmap(markerBitmap));
 
                             mMap.addMarker(markerOptions);
 
-                        } catch (Exception e) {
-                            Log.e("MapFragment", "Marker error", e);
-                        }
+                        } catch (Exception e) { Log.e("MapFragment", "Marker error", e); }
                     }
                 });
 
-            } catch (Exception e) {
-                Log.e("MapFragment", "Fetch error", e);
-            }
+            } catch (Exception e) { Log.e("MapFragment", "Fetch error", e); }
         }).start();
     }
 }

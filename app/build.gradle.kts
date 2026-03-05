@@ -56,5 +56,4 @@ dependencies {
     implementation ("com.google.maps.android:android-maps-utils:2.3.0")
     implementation ("com.google.firebase:firebase-firestore:24.7.0")
     implementation ("com.google.firebase:firebase-auth:22.1.0")
-
 }
