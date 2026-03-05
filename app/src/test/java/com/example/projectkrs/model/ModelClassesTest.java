@@ -109,4 +109,82 @@ public class ModelClassesTest {
         assertEquals(0.0, recommendation.getLng(), 0.0);
         assertNull(recommendation.getPhotoUrl());
     }
+
+
+    @Test
+    public void commentEmptyConstructor_initializesDefaultValues() {
+        Comment comment = new Comment();
+
+        assertNull(comment.getAuthor());
+        assertNull(comment.getText());
+        assertEquals(0.0f, comment.getRating(), 0.0f);
+    }
+
+    @Test
+    public void shopBackgroundEmptyConstructor_initializesDefaultValues() {
+        ShopBackground background = new ShopBackground();
+
+        assertNull(background.getName());
+        assertEquals(0, background.getPrice());
+        assertNull(background.getDrawable());
+    }
+
+    @Test
+    public void chatMessageEmptyConstructor_initializesDefaultValues() {
+        ChatMessage message = new ChatMessage();
+
+        assertNull(message.getText());
+        assertNull(message.getUserEmail());
+        assertNull(message.getUserId());
+        assertNull(message.getTimestamp());
+    }
+
+    @Test
+    public void placeWithDistanceConstructor_setsFieldsAndDefaultStatus() {
+        PlaceWithDistance placeWithDistance = new PlaceWithDistance(null, 12.3);
+
+        assertNull(placeWithDistance.getPlace());
+        assertEquals(12.3, placeWithDistance.getDistance(), 0.0);
+        assertEquals("all", placeWithDistance.getStatus());
+    }
+
+    @Test
+    public void placeWithDistanceSetStatus_updatesStatus() {
+        PlaceWithDistance placeWithDistance = new PlaceWithDistance(null, 5.0);
+
+        placeWithDistance.setStatus("visited");
+
+        assertEquals("visited", placeWithDistance.getStatus());
+    }
+
+    @Test
+    public void placeRecommendationIdConstructor_setsAllFields() {
+        PlaceRecommendation recommendation = new PlaceRecommendation(
+                "id-9", "Nida", "Naglių g. 3", 55.30, 21.00
+        );
+
+        assertEquals("id-9", recommendation.getId());
+        assertEquals("Nida", recommendation.getName());
+        assertNull(recommendation.getPlaceId());
+        assertEquals("Naglių g. 3", recommendation.getAddress());
+        assertEquals(55.30, recommendation.getLat(), 0.0);
+        assertEquals(21.00, recommendation.getLng(), 0.0);
+        assertNull(recommendation.getPhotoUrl());
+    }
+
+    @Test
+    public void placeRecommendationDescribeContents_returnsZero() {
+        PlaceRecommendation recommendation = new PlaceRecommendation();
+
+        assertEquals(0, recommendation.describeContents());
+    }
+
+    @Test
+    public void placeRecommendationCreatorNewArray_returnsRequestedSize() {
+        PlaceRecommendation[] array = PlaceRecommendation.CREATOR.newArray(3);
+
+        assertEquals(3, array.length);
+        assertNull(array[0]);
+    }
+
 }
