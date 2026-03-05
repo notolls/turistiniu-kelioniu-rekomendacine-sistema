@@ -2,6 +2,8 @@ package com.example.projectkrs.fragments;
 
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -41,7 +43,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     private GoogleMap mMap;
     private LatLng userLocation;
     private Spinner categorySpinner;
-    private Button btnToggleVisited, btnWeather;
+    private Button btnToggleVisited, btnWeather, btnAddToRoute, btnOpenRoute;
     private WeatherOverlayView weatherOverlay;
 
     private WeatherOverlayView.WeatherType currentWeather = WeatherOverlayView.WeatherType.NONE;
@@ -63,7 +65,9 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     private String viewUserId = null;
     private TileOverlay heatmapOverlay;
     private boolean heatmapVisible = false;
-    private List<WeightedLatLng> heatList = new ArrayList<>();
+    private final List<WeightedLatLng> heatList = new ArrayList<>();
+    private final List<LatLng> routePoints = new ArrayList<>();
+    private Marker selectedMarker;
 
     @Nullable
     @Override
@@ -75,6 +79,8 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
         categorySpinner = view.findViewById(R.id.categorySpinner);
         btnToggleVisited = view.findViewById(R.id.btnToggleVisited);
         btnWeather = view.findViewById(R.id.btnWeather);
+        btnAddToRoute = view.findViewById(R.id.btnAddToRoute);
+        btnOpenRoute = view.findViewById(R.id.btnOpenRoute);
         weatherOverlay = view.findViewById(R.id.weatherOverlay);
 
         if (getArguments() != null) {
@@ -111,6 +117,9 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
 
         btnToggleVisited.setOnClickListener(v -> toggleHeatmap());
 
+        btnAddToRoute.setOnClickListener(v -> addSelectedMarkerToRoute());
+        btnOpenRoute.setOnClickListener(v -> openRouteInGoogleMaps());
+
         // Weather button ciklas
         btnWeather.setOnClickListener(v -> {
             weatherIndex = (weatherIndex + 1) % weatherTypes.length;
@@ -130,6 +139,14 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     @Override
     public void onMapReady(@NonNull GoogleMap googleMap) {
         mMap = googleMap;
+        mMap.setOnMarkerClickListener(marker -> {
+            selectedMarker = marker;
+            if (viewUserId == null) {
+                btnAddToRoute.setVisibility(View.VISIBLE);
+            }
+            marker.showInfoWindow();
+            return false;
+        });
 
         if (viewUserId != null) {
             loadVisitedPlacesOfUser(viewUserId);
@@ -168,6 +185,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
                     if (!isAdded() || mMap == null) return;
 
                     mMap.clear();
+                    resetRouteState();
                     heatList.clear();
 
                     for (DocumentSnapshot doc : query.getDocuments()) {
@@ -227,6 +245,57 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
         }
     }
 
+    private void addSelectedMarkerToRoute() {
+        if (selectedMarker == null) return;
+
+        LatLng point = selectedMarker.getPosition();
+        for (LatLng routePoint : routePoints) {
+            if (routePoint.latitude == point.latitude && routePoint.longitude == point.longitude) {
+                return;
+            }
+        }
+
+        routePoints.add(point);
+        btnOpenRoute.setVisibility(routePoints.size() >= 2 ? View.VISIBLE : View.GONE);
+    }
+
+    private void openRouteInGoogleMaps() {
+        if (routePoints.size() < 2 || getContext() == null) return;
+
+        LatLng origin = routePoints.get(0);
+        LatLng destination = routePoints.get(routePoints.size() - 1);
+
+        StringBuilder uriBuilder = new StringBuilder("https://www.google.com/maps/dir/?api=1");
+        uriBuilder.append("&origin=").append(origin.latitude).append(',').append(origin.longitude);
+        uriBuilder.append("&destination=").append(destination.latitude).append(',').append(destination.longitude);
+        uriBuilder.append("&travelmode=walking");
+
+        if (routePoints.size() > 2) {
+            uriBuilder.append("&waypoints=");
+            for (int i = 1; i < routePoints.size() - 1; i++) {
+                LatLng waypoint = routePoints.get(i);
+                if (i > 1) uriBuilder.append('|');
+                uriBuilder.append(waypoint.latitude).append(',').append(waypoint.longitude);
+            }
+        }
+
+        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(uriBuilder.toString()));
+        intent.setPackage("com.google.android.apps.maps");
+
+        if (intent.resolveActivity(requireContext().getPackageManager()) == null) {
+            intent.setPackage(null);
+        }
+
+        startActivity(intent);
+    }
+
+    private void resetRouteState() {
+        routePoints.clear();
+        selectedMarker = null;
+        if (btnAddToRoute != null) btnAddToRoute.setVisibility(View.GONE);
+        if (btnOpenRoute != null) btnOpenRoute.setVisibility(View.GONE);
+    }
+
     private void fetchNearbyPlaces(LatLng location) {
         new Thread(() -> {
             try {
@@ -253,6 +322,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
                 mainHandler.post(() -> {
                     if (!isAdded() || mMap == null) return;
                     mMap.clear();
+                    resetRouteState();
 
                     int markerResId = getResources().getIdentifier(selectedMarkerDrawable, "drawable", requireContext().getPackageName());
                     Bitmap markerBitmap = getBitmapFromVector(markerResId);
