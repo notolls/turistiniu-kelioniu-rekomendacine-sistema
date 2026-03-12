@@ -4,6 +4,10 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.content.Intent;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -41,12 +45,13 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.*;
 
-public class MapFragment extends Fragment implements OnMapReadyCallback {
+public class MapFragment extends Fragment implements OnMapReadyCallback, SensorEventListener {
 
     private GoogleMap mMap;
     private LatLng userLocation;
     private Spinner categorySpinner;
-    private Button btnToggleVisited, btnWeather, btnAddToRoute, btnOpenRoute;
+    private Button btnToggleVisited, btnWeather, btnAddToRoute, btnOpenRoute, btnToggleCompass;
+    private ImageView ivCompass;
     private WeatherOverlayView weatherOverlay;
 
     private WeatherOverlayView.WeatherType currentWeather = WeatherOverlayView.WeatherType.NONE;
@@ -73,6 +78,17 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     private Marker selectedMarker;
     private final Map<String, Bitmap> photoCache = new HashMap<>();
 
+    private SensorManager sensorManager;
+    private Sensor rotationVectorSensor;
+    private Sensor accelerometerSensor;
+    private Sensor magneticFieldSensor;
+    private boolean compassEnabled = true;
+    private float currentAzimuth = 0f;
+    private final float[] gravityValues = new float[3];
+    private final float[] magneticValues = new float[3];
+    private boolean hasGravityValues = false;
+    private boolean hasMagneticValues = false;
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater,
@@ -85,7 +101,16 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
         btnWeather = view.findViewById(R.id.btnWeather);
         btnAddToRoute = view.findViewById(R.id.btnAddToRoute);
         btnOpenRoute = view.findViewById(R.id.btnOpenRoute);
+        btnToggleCompass = view.findViewById(R.id.btnToggleCompass);
+        ivCompass = view.findViewById(R.id.ivCompass);
         weatherOverlay = view.findViewById(R.id.weatherOverlay);
+
+        sensorManager = (SensorManager) requireContext().getSystemService(android.content.Context.SENSOR_SERVICE);
+        if (sensorManager != null) {
+            rotationVectorSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
+            accelerometerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+            magneticFieldSensor = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
+        }
 
         if (getArguments() != null) {
             viewUserId = getArguments().getString("view_user_id");
@@ -123,6 +148,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
 
         btnAddToRoute.setOnClickListener(v -> addSelectedMarkerToRoute());
         btnOpenRoute.setOnClickListener(v -> openRouteInGoogleMaps());
+        btnToggleCompass.setOnClickListener(v -> toggleCompass());
 
         // Weather button ciklas
         btnWeather.setOnClickListener(v -> {
@@ -136,8 +162,23 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
         if (mapFragment != null) mapFragment.getMapAsync(this);
 
         loadUserSelectedMarker();
+        updateCompassUi();
 
         return view;
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        registerCompassSensors();
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        if (sensorManager != null) {
+            sensorManager.unregisterListener(this);
+        }
     }
 
     @Override
@@ -216,6 +257,83 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
                 return infoView;
             }
         });
+    }
+
+    private void toggleCompass() {
+        compassEnabled = !compassEnabled;
+        if (compassEnabled) {
+            registerCompassSensors();
+        } else if (sensorManager != null) {
+            sensorManager.unregisterListener(this);
+        }
+        updateCompassUi();
+    }
+
+    private void updateCompassUi() {
+        if (ivCompass != null) {
+            ivCompass.setVisibility(compassEnabled ? View.VISIBLE : View.GONE);
+        }
+        if (btnToggleCompass != null) {
+            btnToggleCompass.setText(compassEnabled
+                    ? getString(R.string.compass_disable)
+                    : getString(R.string.compass_enable));
+        }
+    }
+
+    private void registerCompassSensors() {
+        if (!compassEnabled || sensorManager == null) return;
+
+        if (rotationVectorSensor != null) {
+            sensorManager.registerListener(this, rotationVectorSensor, SensorManager.SENSOR_DELAY_UI);
+            return;
+        }
+
+        if (accelerometerSensor != null && magneticFieldSensor != null) {
+            sensorManager.registerListener(this, accelerometerSensor, SensorManager.SENSOR_DELAY_UI);
+            sensorManager.registerListener(this, magneticFieldSensor, SensorManager.SENSOR_DELAY_UI);
+        }
+    }
+
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+        if (!compassEnabled || ivCompass == null) return;
+
+        if (event.sensor.getType() == Sensor.TYPE_ROTATION_VECTOR) {
+            float[] rotationMatrix = new float[9];
+            SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values);
+            float[] orientationValues = new float[3];
+            SensorManager.getOrientation(rotationMatrix, orientationValues);
+            updateCompassRotation((float) Math.toDegrees(orientationValues[0]));
+            return;
+        }
+
+        if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
+            System.arraycopy(event.values, 0, gravityValues, 0, gravityValues.length);
+            hasGravityValues = true;
+        } else if (event.sensor.getType() == Sensor.TYPE_MAGNETIC_FIELD) {
+            System.arraycopy(event.values, 0, magneticValues, 0, magneticValues.length);
+            hasMagneticValues = true;
+        }
+
+        if (hasGravityValues && hasMagneticValues) {
+            float[] rotationMatrix = new float[9];
+            if (SensorManager.getRotationMatrix(rotationMatrix, null, gravityValues, magneticValues)) {
+                float[] orientationValues = new float[3];
+                SensorManager.getOrientation(rotationMatrix, orientationValues);
+                updateCompassRotation((float) Math.toDegrees(orientationValues[0]));
+            }
+        }
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
+        // Nereikia papildomos logikos.
+    }
+
+    private void updateCompassRotation(float azimuthDegrees) {
+        float normalizedAzimuth = (azimuthDegrees + 360f) % 360f;
+        ivCompass.animate().rotation(-normalizedAzimuth).setDuration(120).start();
+        currentAzimuth = normalizedAzimuth;
     }
 
     private void loadInfoWindowPhoto(Marker marker, String photoUrl) {
