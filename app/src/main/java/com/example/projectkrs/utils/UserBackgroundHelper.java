@@ -11,6 +11,14 @@ public final class UserBackgroundHelper {
     private UserBackgroundHelper() {
     }
 
+    static boolean hasUsableBackgroundSelection(String drawableName) {
+        return drawableName != null && !drawableName.trim().isEmpty();
+    }
+
+    static boolean isValidDrawableResource(int resId) {
+        return resId != 0;
+    }
+
     public static void applySelectedBackground(@NonNull AppCompatActivity activity) {
         String uid = FirebaseAuth.getInstance().getUid();
         if (uid == null) {
@@ -27,7 +35,7 @@ public final class UserBackgroundHelper {
                     }
 
                     String drawableName = doc.getString("selectedBackground");
-                    if (drawableName == null || drawableName.trim().isEmpty()) {
+                    if (!hasUsableBackgroundSelection(drawableName)) {
                         return;
                     }
 
@@ -37,7 +45,7 @@ public final class UserBackgroundHelper {
                             activity.getPackageName()
                     );
 
-                    if (resId != 0) {
+                    if (isValidDrawableResource(resId)) {
                         activity.findViewById(android.R.id.content).setBackgroundResource(resId);
                     }
                 });

@@ -5,6 +5,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
@@ -18,6 +19,8 @@ import com.google.android.libraries.places.api.model.Place;
 import java.util.List;
 
 public class PostAdapter<T> extends RecyclerView.Adapter<PostAdapter.PostViewHolder> {
+
+    private static final String TAG = "PostAdapter";
 
     private List<T> itemsList;
     private OnItemClickListener mListener;
@@ -51,6 +54,10 @@ public class PostAdapter<T> extends RecyclerView.Adapter<PostAdapter.PostViewHol
 
     @Override
     public void onBindViewHolder(@NonNull PostViewHolder holder, int position) {
+        holder.itemView.animate().cancel();
+        holder.itemView.setAlpha(1f);
+        holder.itemView.setTranslationY(0f);
+
         T item = itemsList.get(position);
         if (item instanceof Place) {
             holder.bind((Place) item);
@@ -73,6 +80,10 @@ public class PostAdapter<T> extends RecyclerView.Adapter<PostAdapter.PostViewHol
     @Override
     public int getItemCount() {
         return itemsList.size();
+    }
+
+    static String formatPlaceWithDistanceLabel(String placeName, double distanceMeters) {
+        return placeName + " - " + String.format("%.2f Kilometrai", distanceMeters / 1000);
     }
 
     public static class PostViewHolder extends RecyclerView.ViewHolder {
@@ -109,7 +120,7 @@ public class PostAdapter<T> extends RecyclerView.Adapter<PostAdapter.PostViewHol
                         .placeholder(R.drawable.placeholder_image) // Placeholder image
                         .error(R.drawable.error_image) // Error image
                         .into(imageView);
-                System.out.println("Image URL: " + imageUrl);
+                Log.i(TAG, "Image URL: " + imageUrl);
             } else {
                 // Nėra photo metadata, rodyti placeholder image
                 Glide.with(itemView)
@@ -136,7 +147,7 @@ public class PostAdapter<T> extends RecyclerView.Adapter<PostAdapter.PostViewHol
                         .placeholder(R.drawable.placeholder_image) // Placeholder image
                         .error(R.drawable.error_image) // Error image
                         .into(imageView);
-                System.out.println("Image URL: " + imageUrl);
+                Log.i(TAG, "Image URL: " + imageUrl);
             } else {
                 // Nėra photo metadata, rodyti placeholder image
                 Glide.with(itemView)
@@ -145,7 +156,7 @@ public class PostAdapter<T> extends RecyclerView.Adapter<PostAdapter.PostViewHol
             }
 
             // Nustatyti pavadinimą ir atstumą
-            nameTextView.setText(place.getName() + " - " + String.format("%.2f Kilometrai", distance/1000));
+            nameTextView.setText(formatPlaceWithDistanceLabel(place.getName(), distance));
 
         }
 
