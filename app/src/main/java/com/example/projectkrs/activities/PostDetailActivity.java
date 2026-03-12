@@ -152,13 +152,36 @@ public class PostDetailActivity extends AppCompatActivity {
         loadNearbyRecommendations();
     }
 
+
+    static String buildPhotoUrl(String photoReference, String apiKey, int maxWidth) {
+        return "https://maps.googleapis.com/maps/api/place/photo?maxwidth=" + maxWidth
+                + "&photoreference=" + photoReference
+                + "&key=" + apiKey;
+    }
+
+    static String buildPlaceDetailsUrl(String placeId, String apiKey) {
+        return "https://maps.googleapis.com/maps/api/place/details/json?place_id="
+                + placeId + "&fields=name,reviews&key=" + apiKey;
+    }
+
+    static String buildNearbySearchUrl(double lat, double lng, String apiKey) {
+        return "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+                + "?location=" + lat + "," + lng
+                + "&radius=5000"
+                + "&language=lt"
+                + "&type=tourist_attraction"
+                + "&key=" + apiKey;
+    }
+
+    static boolean shouldDisableVisitedButton(boolean documentExists, boolean hasVisitedPointsAddedField) {
+        return documentExists && hasVisitedPointsAddedField;
+    }
+
     private void loadPlaceMainImage(ImageView imageView) {
         List<PhotoMetadata> photos = place.getPhotoMetadatas();
         if (photos != null && !photos.isEmpty()) {
             String photoReference = photos.get(0).zzb();
-            String imageUrl = "https://maps.googleapis.com/maps/api/place/photo?maxwidth=800"
-                    + "&photoreference=" + photoReference
-                    + "&key=" + getString(R.string.places_api_key);
+            String imageUrl = buildPhotoUrl(photoReference, getString(R.string.places_api_key), 800);
             Glide.with(this).load(imageUrl).into(imageView);
         } else {
             Glide.with(this).load(R.drawable.no_image_placeholder).into(imageView);
@@ -277,15 +300,14 @@ public class PostDetailActivity extends AppCompatActivity {
                 .document(place.getId())
                 .get()
                 .addOnSuccessListener(doc -> {
-                    if (doc.exists() && doc.contains("visitedPointsAdded")) {
+                    if (shouldDisableVisitedButton(doc.exists(), doc.contains("visitedPointsAdded"))) {
                         btnVisited.setEnabled(false);
                     }
                 });
     }
 
     private void loadGoogleComments(String placeId) {
-        String url = "https://maps.googleapis.com/maps/api/place/details/json?place_id="
-                + placeId + "&fields=name,reviews&key=" + getString(R.string.places_api_key);
+        String url = buildPlaceDetailsUrl(placeId, getString(R.string.places_api_key));
 
         RequestQueue queue = Volley.newRequestQueue(this);
         JsonObjectRequest request = new JsonObjectRequest(Request.Method.GET, url, null,
@@ -319,12 +341,7 @@ public class PostDetailActivity extends AppCompatActivity {
 
         new Thread(() -> {
             try {
-                String urlString = "https://maps.googleapis.com/maps/api/place/nearbysearch/json" +
-                        "?location=" + lat + "," + lng +
-                        "&radius=5000" +
-                        "&language=lt" +
-                        "&type=tourist_attraction" +
-                        "&key=" + getString(R.string.places_api_key);
+                String urlString = buildNearbySearchUrl(lat, lng, getString(R.string.places_api_key));
 
                 URL url = new URL(urlString);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -352,8 +369,7 @@ public class PostDetailActivity extends AppCompatActivity {
                             if (photos != null && photos.length() > 0) {
                                 JSONObject photoObj = photos.getJSONObject(0);
                                 String photoRef = photoObj.getString("photo_reference");
-                                photoUrl = "https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference="
-                                        + photoRef + "&key=" + getString(R.string.places_api_key);
+                                photoUrl = buildPhotoUrl(photoRef, getString(R.string.places_api_key), 400);
                             }
 
                             PlaceRecommendation rec = new PlaceRecommendation(

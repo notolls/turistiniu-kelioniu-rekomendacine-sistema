@@ -16,7 +16,7 @@ import com.example.projectkrs.R;
 import com.example.projectkrs.fragments.HomeFragment;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -47,7 +47,7 @@ public class OptionsDialog extends AlertDialog {
         seekBarRadius.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                progressTextView.setText(String.valueOf(progress));
+                progressTextView.setText(formatRadiusProgress(progress));
             }
 
             @Override
@@ -62,15 +62,7 @@ public class OptionsDialog extends AlertDialog {
         });
         // kategorijų pasirinkimo hashmap
 
-        categoryTypesMap = new HashMap<>();
-        categoryTypesMap.put("Kavinės", "cafe");
-        categoryTypesMap.put("Restoranai", "restaurant");
-        categoryTypesMap.put("Muziejai", "museum");
-        categoryTypesMap.put("Autobusų stotys","bus_station");
-        categoryTypesMap.put("Traukinių stotys","train_station");
-        categoryTypesMap.put("Parkai", "park");
-        categoryTypesMap.put("Prekybos centrai", "shopping_mall");
-        categoryTypesMap.put("Bendros lankytinos vietos","tourist_attraction");
+        categoryTypesMap = buildCategoryTypesMap();
 
         List<String> categories = new ArrayList<>(categoryTypesMap.keySet());
         ArrayAdapter<String> spinnerAdapter = new ArrayAdapter<>(getContext(), android.R.layout.simple_spinner_item, categories);
@@ -80,7 +72,7 @@ public class OptionsDialog extends AlertDialog {
         categorySpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parentView, View selectedItemView, int position, long id) {
-                selectedCategory = categoryTypesMap.get(categories.get(position));
+                selectedCategory = resolveCategoryType(categoryTypesMap, categories.get(position));
             }
 
             @Override
@@ -110,10 +102,35 @@ public class OptionsDialog extends AlertDialog {
         });
     }
 
+
+    static String formatRadiusProgress(int progress) {
+        return String.valueOf(progress);
+    }
+
+    static Map<String, String> buildCategoryTypesMap() {
+        Map<String, String> map = new LinkedHashMap<>();
+        map.put("Kavinės", "cafe");
+        map.put("Restoranai", "restaurant");
+        map.put("Muziejai", "museum");
+        map.put("Autobusų stotys", "bus_station");
+        map.put("Traukinių stotys", "train_station");
+        map.put("Parkai", "park");
+        map.put("Prekybos centrai", "shopping_mall");
+        map.put("Bendros lankytinos vietos", "tourist_attraction");
+        return map;
+    }
+
+    static String resolveCategoryType(Map<String, String> categoryTypesMap, String categoryLabel) {
+        if (categoryTypesMap == null || categoryLabel == null) {
+            return null;
+        }
+        return categoryTypesMap.get(categoryLabel);
+    }
+
     private void updateSelectedValues() {
         int selectedRadius = seekBarRadius.getProgress();
         Log.d("OptionsDialog", "Selected Radius: " + selectedRadius);
-        selectedCategory = categoryTypesMap.get(categorySpinner.getSelectedItem().toString());
+        selectedCategory = resolveCategoryType(categoryTypesMap, categorySpinner.getSelectedItem().toString());
         Log.d("OptionsDialog", "Selected Category: " + selectedCategory);
     }
 

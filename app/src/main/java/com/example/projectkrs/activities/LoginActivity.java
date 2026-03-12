@@ -51,7 +51,7 @@ public class LoginActivity extends AppCompatActivity {
         String email = editTextEmail.getText().toString().trim();
         String password = editTextPassword.getText().toString().trim();
 
-        if (email.isEmpty() || password.isEmpty()) {
+        if (!isLoginInputValid(email, password)) {
             Toast.makeText(this,
                     "Prašome suvesti visus duomenis",
                     Toast.LENGTH_SHORT).show();
@@ -67,6 +67,22 @@ public class LoginActivity extends AppCompatActivity {
                                 "Prisijungti nepavyko",
                                 Toast.LENGTH_SHORT).show()
                 );
+    }
+
+
+    static boolean isLoginInputValid(String email, String password) {
+        return email != null && password != null && !email.isEmpty() && !password.isEmpty();
+    }
+
+    static Map<String, Object> buildDefaultUserData() {
+        Map<String, Object> userData = new HashMap<>();
+        userData.put("points", 100);
+        userData.put("selectedMarker", "marker_default");
+        return userData;
+    }
+
+    static Map<String, Object> buildDefaultOwnedMarkerPayload() {
+        return Collections.singletonMap("owned", true);
     }
 
     /**
@@ -85,9 +101,7 @@ public class LoginActivity extends AppCompatActivity {
 
             if (!doc.exists()) {
                 // 🔹 KURIAM NAUJĄ USER
-                Map<String, Object> userData = new HashMap<>();
-                userData.put("points", 100);
-                userData.put("selectedMarker", "marker_default");
+                Map<String, Object> userData = buildDefaultUserData();
 
                 userRef.set(userData)
                         .addOnSuccessListener(v -> {
@@ -95,7 +109,7 @@ public class LoginActivity extends AppCompatActivity {
                             // 🔹 DEFAULT MARKER
                             userRef.collection("owned_markers")
                                     .document("marker_default")
-                                    .set(Collections.singletonMap("owned", true))
+.set(buildDefaultOwnedMarkerPayload())
                                     .addOnSuccessListener(x -> openMain());
 
                         });

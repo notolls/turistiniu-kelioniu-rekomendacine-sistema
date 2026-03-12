@@ -31,14 +31,7 @@ public class MainActivity extends AppCompatActivity {
         // Patikrinti ar naudotojas jau prisijungęs
         FirebaseAuth firebaseAuth = FirebaseAuth.getInstance();
         FirebaseUser user = firebaseAuth.getCurrentUser();
-        if (user != null) {
-            // Naudotojas jau prisijunges rodyti splash ekraną
-            setContentView(R.layout.splash_screen);
-
-        } else {
-            // Naudotojas neprisijungęs rodyti autentifikacijos logiką
-            setContentView(R.layout.activity_main);
-        }
+        setContentView(getLayoutForUserState(user != null));
         // Inicijuoti FusedLocationProviderClient
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
@@ -47,9 +40,24 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+
+    static int getLayoutForUserState(boolean isLoggedIn) {
+        return isLoggedIn ? R.layout.splash_screen : R.layout.activity_main;
+    }
+
+    static boolean shouldRequestLocationPermission(boolean hasFinePermission, boolean hasCoarsePermission) {
+        return !hasFinePermission && !hasCoarsePermission;
+    }
+
+    static boolean isPermissionGrantedResult(int[] grantResults) {
+        return grantResults != null && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+    }
+
     private void requestLocationPermission() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                && ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+        if (shouldRequestLocationPermission(
+                ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED,
+                ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        )) {
             ActivityCompat.requestPermissions(this,
                     new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION},
                     LOCATION_PERMISSION_REQUEST_CODE);
@@ -99,7 +107,7 @@ public class MainActivity extends AppCompatActivity {
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            if (isPermissionGrantedResult(grantResults)) {
                 getLocation();
             } else {
                 //nesuteikta prieiga
