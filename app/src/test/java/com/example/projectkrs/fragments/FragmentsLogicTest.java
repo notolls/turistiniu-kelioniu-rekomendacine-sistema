@@ -71,6 +71,16 @@ public class FragmentsLogicTest {
     }
 
     @Test
+    public void isMapStyleResource_returnsTrue_forMapStyleName() {
+        assertTrue(ShopFragment.isMapStyleResource("map_desert"));
+    }
+
+    @Test
+    public void isMapStyleResource_returnsFalse_forNonMapStyleName() {
+        assertFalse(ShopFragment.isMapStyleResource("bg_blue"));
+    }
+
+    @Test
     public void buildPurchaseUpdate_buildsMarkerUpdate() {
         Map<String, Object> update = ShopFragment.buildPurchaseUpdate(90, "marker_red");
 
@@ -87,6 +97,17 @@ public class FragmentsLogicTest {
         assertEquals(2, update.size());
         assertEquals(80, update.get("points"));
         assertEquals("bg_black", update.get("selectedBackground"));
+        assertNull(update.get("selectedMarker"));
+    }
+
+    @Test
+    public void buildPurchaseUpdate_buildsMapStyleUpdate() {
+        Map<String, Object> update = ShopFragment.buildPurchaseUpdate(75, "map_nightvision");
+
+        assertEquals(2, update.size());
+        assertEquals(75, update.get("points"));
+        assertEquals("map_nightvision", update.get("selectedMapStyle"));
+        assertNull(update.get("selectedBackground"));
         assertNull(update.get("selectedMarker"));
     }
 
@@ -144,6 +165,16 @@ public class FragmentsLogicTest {
         assertEquals(2, top2.size());
         assertEquals("1", top2.get(0).getId());
         assertEquals("2", top2.get(1).getId());
+    }
+
+    @Test
+    public void mapResolveMapStyleRawResId_returnsExpectedValues() {
+        assertEquals(com.example.projectkrs.R.raw.map_desert,
+                MapFragment.resolveMapStyleRawResId("map_desert"));
+        assertEquals(com.example.projectkrs.R.raw.map_assasinscreed,
+                MapFragment.resolveMapStyleRawResId("map_assasinscreed"));
+        assertEquals(0, MapFragment.resolveMapStyleRawResId("bg_blue"));
+        assertEquals(0, MapFragment.resolveMapStyleRawResId(null));
     }
 
     @Test

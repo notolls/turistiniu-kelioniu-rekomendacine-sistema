@@ -51,7 +51,7 @@ public class ShopAdapter extends RecyclerView.Adapter<ShopAdapter.ViewHolder> {
                 "drawable",
                 context.getPackageName()
         );
-        holder.icon.setImageResource(resId);
+        holder.icon.setImageResource(resId != 0 ? resId : R.drawable.ic_map);
 
         holder.button.setOnClickListener(v -> {
             if (listener != null) listener.onMarkerClick(marker);

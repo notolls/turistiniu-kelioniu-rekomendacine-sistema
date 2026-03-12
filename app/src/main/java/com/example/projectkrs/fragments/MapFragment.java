@@ -62,6 +62,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     private static final int DEFAULT_RADIUS = 10000;
     private String selectedCategory = "tourist_attraction";
     private String selectedMarkerDrawable = "marker_default";
+    private String selectedMapStyle = "";
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private Map<String, String> categoryTypesMap = new HashMap<>();
@@ -143,6 +144,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     @Override
     public void onMapReady(@NonNull GoogleMap googleMap) {
         mMap = googleMap;
+        applySelectedMapStyle();
         setupInfoWindowAdapter();
         mMap.setOnMarkerClickListener(marker -> {
             selectedMarker = marker;
@@ -290,6 +292,39 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     // ===============================
     // NEARBY PLACES + MARKERS
     // ===============================
+    static int resolveMapStyleRawResId(String mapStyleName) {
+        if (mapStyleName == null || mapStyleName.isEmpty()) return 0;
+
+        switch (mapStyleName) {
+            case "map_assasinscreed":
+                return R.raw.map_assasinscreed;
+            case "map_desert":
+                return R.raw.map_desert;
+            case "map_nightvision":
+                return R.raw.map_nightvision;
+            case "map_sanandreas":
+                return R.raw.map_sanandreas;
+            default:
+                return 0;
+        }
+    }
+
+    private void applySelectedMapStyle() {
+        if (mMap == null || !isAdded()) return;
+
+        int styleResId = resolveMapStyleRawResId(selectedMapStyle);
+        if (styleResId == 0) {
+            mMap.setMapStyle(null);
+            return;
+        }
+
+        try {
+            mMap.setMapStyle(MapStyleOptions.loadRawResourceStyle(requireContext(), styleResId));
+        } catch (Exception e) {
+            Log.e("MapFragment", "Failed to apply selected map style", e);
+        }
+    }
+
     private void loadUserSelectedMarker() {
         String uid = FirebaseAuth.getInstance().getUid();
         if (uid == null) return;
@@ -301,6 +336,13 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
                         selectedMarkerDrawable = doc.getString("selectedMarker");
                         if (mMap != null && userLocation != null && viewUserId == null)
                             fetchNearbyPlaces(userLocation);
+                    }
+
+                    if (doc.exists() && doc.contains("selectedMapStyle")) {
+                        selectedMapStyle = doc.getString("selectedMapStyle");
+                    }
+                    if (mMap != null) {
+                        applySelectedMapStyle();
                     }
                 });
     }
