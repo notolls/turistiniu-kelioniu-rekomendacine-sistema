@@ -1,9 +1,12 @@
 package com.example.projectkrs.activities;
 
 import com.example.projectkrs.R;
+import com.example.projectkrs.model.PlaceWithCount;
 
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -176,4 +179,57 @@ public class CoreActivitiesLogicTest {
         assertFalse(PostDetailActivity.shouldDisableVisitedButton(false, true));
         assertFalse(PostDetailActivity.shouldDisableVisitedButton(false, false));
     }
+    @Test
+    public void changePasswordArePasswordFieldsValid_returnsTrue_whenBothFilled() {
+        assertTrue(ChangePasswordActivity.arePasswordFieldsValid("oldPass", "newPass"));
+    }
+
+    @Test
+    public void changePasswordArePasswordFieldsValid_returnsFalse_whenAnyEmptyOrNull() {
+        assertFalse(ChangePasswordActivity.arePasswordFieldsValid("", "newPass"));
+        assertFalse(ChangePasswordActivity.arePasswordFieldsValid("oldPass", ""));
+        assertFalse(ChangePasswordActivity.arePasswordFieldsValid(null, "newPass"));
+        assertFalse(ChangePasswordActivity.arePasswordFieldsValid("oldPass", null));
+    }
+
+    @Test
+    public void mapShouldAttachUserLocation_returnsTrueOnlyWhenLocationExists() {
+        assertFalse(MapActivity.shouldAttachUserLocation(null));
+        assertTrue(MapActivity.shouldAttachUserLocation(new com.google.android.gms.maps.model.LatLng(54.6872, 25.2797)));
+    }
+
+    @Test
+    public void statisticsResolveMostVisitedType_returnsDefault_forNullOrEmpty() {
+        assertEquals("Nėra duomenų", StatisticsActivity.resolveMostVisitedType(null));
+        assertEquals("Nėra duomenų", StatisticsActivity.resolveMostVisitedType(new HashMap<>()));
+    }
+
+    @Test
+    public void statisticsResolveMostVisitedType_returnsMaxEntryKey() {
+        Map<String, Integer> typeCounts = new HashMap<>();
+        typeCounts.put("park", 2);
+        typeCounts.put("museum", 5);
+
+        assertEquals("museum", StatisticsActivity.resolveMostVisitedType(typeCounts));
+    }
+
+    @Test
+    public void statisticsSortPlacesByCountDesc_sortsInDescendingOrder() {
+        List<PlaceWithCount> places = new ArrayList<>();
+        places.add(new PlaceWithCount("A", 1));
+        places.add(new PlaceWithCount("B", 5));
+        places.add(new PlaceWithCount("C", 3));
+
+        StatisticsActivity.sortPlacesByCountDesc(places);
+
+        assertEquals("B", places.get(0).getName());
+        assertEquals("C", places.get(1).getName());
+        assertEquals("A", places.get(2).getName());
+    }
+
+    @Test
+    public void statisticsSortPlacesByCountDesc_keepsListUnchanged_whenNull() {
+        StatisticsActivity.sortPlacesByCountDesc(null);
+    }
+
 }

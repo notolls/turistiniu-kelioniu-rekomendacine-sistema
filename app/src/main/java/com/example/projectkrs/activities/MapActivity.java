@@ -21,18 +21,32 @@ public class MapActivity extends AppCompatActivity {
         setContentView(R.layout.activity_map);
 
         // Gauti naudotojo buvimo vietą iš pagrindinės veiklos
-        userLocation = getIntent().getParcelableExtra("user_location");
+        userLocation = extractUserLocation(getIntent() == null ? null : getIntent().getExtras());
 
         // Sukurti naują „MapFragment“ instanciją.
         MapFragment mapFragment = new MapFragment();
 
         // Nustatyti fragmento parametrus
         Bundle bundle = new Bundle();
-        bundle.putParcelable("user_location", userLocation);
+        if (shouldAttachUserLocation(userLocation)) {
+            bundle.putParcelable("user_location", userLocation);
+        }
         mapFragment.setArguments(bundle);
 
         // Pakeisti rodomą fragmentą
         replaceFragment(mapFragment);
+    }
+
+
+    static boolean shouldAttachUserLocation(LatLng userLocation) {
+        return userLocation != null;
+    }
+
+    static LatLng extractUserLocation(Bundle extras) {
+        if (extras == null) {
+            return null;
+        }
+        return extras.getParcelable("user_location");
     }
 
     // Fragmentų pakeitimo metodas
