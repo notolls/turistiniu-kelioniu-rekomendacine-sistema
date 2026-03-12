@@ -63,7 +63,7 @@ public class ChatFragment extends Fragment {
 
             String clickedUserId = userIds.get(position);
 
-            if (clickedUserId.equals(FirebaseAuth.getInstance().getUid()))
+            if (!shouldOpenUserMap(clickedUserId, FirebaseAuth.getInstance().getUid()))
                 return;
 
             new AlertDialog.Builder(requireContext())
@@ -81,10 +81,8 @@ public class ChatFragment extends Fragment {
     private void sendMessage() {
 
         String messageText = editMessage.getText().toString().trim();
-        if (TextUtils.isEmpty(messageText)) return;
-
         FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
-        if (user == null) return;
+        if (!isMessageSendAllowed(messageText, user != null)) return;
 
         ChatMessage message = new ChatMessage(
                 messageText,
@@ -121,7 +119,7 @@ public class ChatFragment extends Fragment {
                         String userId = doc.getString("userId");
 
                         if (text != null && user != null && userId != null) {
-                            messagesList.add(user + ": " + text);
+                            messagesList.add(formatChatListItem(user, text));
                             userIds.add(userId);
                         }
                     }
@@ -129,6 +127,19 @@ public class ChatFragment extends Fragment {
                     adapter.notifyDataSetChanged();
                     listView.setSelection(messagesList.size() - 1);
                 });
+    }
+
+
+    static boolean isMessageSendAllowed(String messageText, boolean hasCurrentUser) {
+        return !TextUtils.isEmpty(messageText) && hasCurrentUser;
+    }
+
+    static boolean shouldOpenUserMap(String clickedUserId, String currentUserId) {
+        return clickedUserId != null && !clickedUserId.equals(currentUserId);
+    }
+
+    static String formatChatListItem(String userEmail, String text) {
+        return userEmail + ": " + text;
     }
 
     private void openUserMap(String userId) {

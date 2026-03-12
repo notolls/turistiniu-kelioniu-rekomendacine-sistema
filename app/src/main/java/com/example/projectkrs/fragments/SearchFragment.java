@@ -154,7 +154,26 @@ public class SearchFragment extends Fragment implements PostAdapter.OnItemClickL
     }
 
     private void updateSortButtonText() {
-        buttonSort.setText(sortAscending ? "Arčiausi" : "Tolimiausi");
+        buttonSort.setText(getSortButtonText(sortAscending));
+    }
+
+
+    static String getSortButtonText(boolean sortAscending) {
+        return sortAscending ? "Arčiausi" : "Tolimiausi";
+    }
+
+    static boolean matchesFilter(String currentFilter, String placeStatus) {
+        return "all".equals(currentFilter) || Objects.equals(placeStatus, currentFilter);
+    }
+
+    static boolean matchesQuery(String currentQuery, String placeName) {
+        return currentQuery == null
+                || currentQuery.isEmpty()
+                || (placeName != null && placeName.toLowerCase().contains(currentQuery.toLowerCase()));
+    }
+
+    static String buildResultCountText(int resultCount) {
+        return "Rasta: " + resultCount;
     }
 
     private void loadUserPlacesFromFirestore() {
@@ -209,13 +228,12 @@ public class SearchFragment extends Fragment implements PostAdapter.OnItemClickL
     private void applyFilter() {
         searchResults.clear();
         for (PlaceWithDistance pwd : allUserPlaces) {
-            boolean matchesFilter = "all".equals(currentFilter) || pwd.getStatus().equals(currentFilter);
+            boolean matchesFilter = matchesFilter(currentFilter, pwd.getStatus());
             String placeName = pwd.getPlace().getName();
-            boolean matchesQuery = currentQuery.isEmpty() || (placeName != null
-                    && placeName.toLowerCase().contains(currentQuery.toLowerCase()));
+            boolean matchesQuery = matchesQuery(currentQuery, placeName);
 
             if (matchesFilter && matchesQuery) {
-                if (!containsPlace(searchResults, pwd.getPlace().getId())) {
+                if (!containsPlaceId(searchResults, pwd.getPlace().getId())) {
                     searchResults.add(pwd);
                 }
             }
@@ -226,10 +244,10 @@ public class SearchFragment extends Fragment implements PostAdapter.OnItemClickL
         }
         Collections.sort(searchResults, comparator);
         searchAdapter.notifyDataSetChanged();
-        textResultCount.setText("Rasta: " + searchResults.size());
+        textResultCount.setText(buildResultCountText(searchResults.size()));
     }
 
-    private boolean containsPlace(List<PlaceWithDistance> places, String placeId) {
+    static boolean containsPlaceId(List<PlaceWithDistance> places, String placeId) {
         if (placeId == null) return false;
         for (PlaceWithDistance item : places) {
             if (placeId.equals(item.getPlace().getId())) {
@@ -286,7 +304,7 @@ public class SearchFragment extends Fragment implements PostAdapter.OnItemClickL
                 PlaceWithDistance pwd = new PlaceWithDistance(place, distance);
                 pwd.setStatus("all"); // naujos vietos status default "all"
 
-                if (!containsPlace(allUserPlaces, place.getId())) {
+                if (!containsPlaceId(allUserPlaces, place.getId())) {
                     allUserPlaces.add(pwd);
                 }
                 applyFilter();

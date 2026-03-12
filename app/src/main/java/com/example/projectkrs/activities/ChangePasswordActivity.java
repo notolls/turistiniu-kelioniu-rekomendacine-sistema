@@ -40,7 +40,7 @@ public class ChangePasswordActivity extends AppCompatActivity {
         String newPassword = editTextNewPassword.getText().toString().trim();
 
         // Tikrinam įvesti
-        if (TextUtils.isEmpty(currentPassword) || TextUtils.isEmpty(newPassword)) {
+        if (!arePasswordFieldsValid(currentPassword, newPassword)) {
             Toast.makeText(ChangePasswordActivity.this, "Prašome įvesti darbtinį ir naują slaptažodžius", Toast.LENGTH_SHORT).show();
             return;
         }
@@ -70,5 +70,9 @@ public class ChangePasswordActivity extends AppCompatActivity {
                         Toast.makeText(ChangePasswordActivity.this, "Klaidingas dabartinis slaptažodis: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                     });
         }
+    }
+
+    static boolean arePasswordFieldsValid(String currentPassword, String newPassword) {
+        return !TextUtils.isEmpty(currentPassword) && !TextUtils.isEmpty(newPassword);
     }
 }

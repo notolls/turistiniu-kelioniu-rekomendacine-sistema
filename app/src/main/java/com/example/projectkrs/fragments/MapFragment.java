@@ -328,18 +328,40 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
 
         LatLng point = selectedMarker.getPosition();
         for (LatLng routePoint : routePoints) {
-            if (routePoint.latitude == point.latitude && routePoint.longitude == point.longitude) {
+            if (isSamePoint(routePoint, point)) {
                 return;
             }
         }
 
         routePoints.add(point);
-        btnOpenRoute.setVisibility(routePoints.size() >= 2 ? View.VISIBLE : View.GONE);
+        btnOpenRoute.setVisibility(canOpenRoute(routePoints.size()) ? View.VISIBLE : View.GONE);
     }
 
     private void openRouteInGoogleMaps() {
-        if (routePoints.size() < 2 || getContext() == null) return;
+        if (!canOpenRoute(routePoints.size()) || getContext() == null) return;
 
+        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(buildGoogleMapsRouteUrl(routePoints)));
+        intent.setPackage("com.google.android.apps.maps");
+
+        if (intent.resolveActivity(requireContext().getPackageManager()) == null) {
+            intent.setPackage(null);
+        }
+
+        startActivity(intent);
+    }
+
+
+    static boolean isSamePoint(LatLng first, LatLng second) {
+        return first != null && second != null
+                && first.latitude == second.latitude
+                && first.longitude == second.longitude;
+    }
+
+    static boolean canOpenRoute(int routePointCount) {
+        return routePointCount >= 2;
+    }
+
+    static String buildGoogleMapsRouteUrl(List<LatLng> routePoints) {
         LatLng origin = routePoints.get(0);
         LatLng destination = routePoints.get(routePoints.size() - 1);
 
@@ -357,14 +379,7 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
             }
         }
 
-        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(uriBuilder.toString()));
-        intent.setPackage("com.google.android.apps.maps");
-
-        if (intent.resolveActivity(requireContext().getPackageManager()) == null) {
-            intent.setPackage(null);
-        }
-
-        startActivity(intent);
+        return uriBuilder.toString();
     }
 
     private void resetRouteState() {
