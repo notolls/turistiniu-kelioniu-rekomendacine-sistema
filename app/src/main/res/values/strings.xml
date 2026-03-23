@@ -5,5 +5,8 @@
 
     <string name="add_to_route">Pridėti į maršrutą</string>
     <string name="open_route">Peržiūrėti maršrutą Google Maps</string>
+    <string name="compass_enable">Įjungti kompasą</string>
+    <string name="compass_disable">Išjungti kompasą</string>
+    <string name="compass_content_description">Žemėlapio kompasas</string>
 
 </resources>

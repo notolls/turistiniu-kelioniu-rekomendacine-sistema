@@ -41,7 +41,25 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Heatmap"/>
+
+        <Button
+            android:id="@+id/btnToggleCompass"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/compass_disable"/>
     </LinearLayout>
+
+    <ImageView
+        android:id="@+id/ivCompass"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="end|top"
+        android:layout_marginTop="72dp"
+        android:layout_marginEnd="12dp"
+        android:background="@drawable/rounded_bg_white"
+        android:padding="6dp"
+        android:src="@drawable/ic_compass"
+        android:contentDescription="@string/compass_content_description" />
 
     <LinearLayout
         android:layout_width="match_parent"
