@@ -133,7 +133,7 @@ public class HomeFragment extends Fragment implements PostAdapter.OnItemClickLis
     }
 
     public void handleOptionsDialogResult(int radius, String selectedCategory) {
-        DEFAULT_RADIUS = radius * 1000;
+        DEFAULT_RADIUS = toRadiusMeters(radius);
         DEFAULT_TYPE = selectedCategory;
         fetchNearbyTouristAttractions(userLocation);
     }
@@ -207,13 +207,29 @@ public class HomeFragment extends Fragment implements PostAdapter.OnItemClickLis
         }).start();
     }
 
+
+    static int toRadiusMeters(int radiusInKm) {
+        return radiusInKm * 1000;
+    }
+
+    static List<Place> selectTopPlaces(List<Place> places, int limit) {
+        List<Place> topPlaces = new ArrayList<>();
+        if (places == null || limit <= 0) {
+            return topPlaces;
+        }
+
+        for (int i = 0; i < Math.min(limit, places.size()); i++) {
+            topPlaces.add(places.get(i));
+        }
+        return topPlaces;
+    }
+
     private void onPlacesFetched(List<Place> places) {
         placesList.clear();
         placesList.addAll(places);
 
         // Top 3 vietos į ViewPager
-        List<Place> top3 = new ArrayList<>();
-        for (int i = 0; i < Math.min(3, places.size()); i++) top3.add(places.get(i));
+        List<Place> top3 = selectTopPlaces(places, 3);
         imageSliderAdapter.updateData(top3);
         imageSliderAdapter.notifyDataSetChanged();
 

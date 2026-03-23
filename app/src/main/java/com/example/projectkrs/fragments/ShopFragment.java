@@ -77,7 +77,7 @@ public class ShopFragment extends Fragment {
                     if (doc.exists() && doc.contains("points")) {
                         userPoints = doc.getLong("points").intValue();
                     }
-                    textPoints.setText("Taškai: " + userPoints);
+                    textPoints.setText(formatPointsText(userPoints));
                 });
     }
 
@@ -101,32 +101,78 @@ public class ShopFragment extends Fragment {
                                     if (item != null) items.add(item);
                                 }
 
+                                addLocalMapStyleItemsIfMissing();
                                 adapter.notifyDataSetChanged();
                             });
                 });
     }
 
+
+    private void addLocalMapStyleItemsIfMissing() {
+        addLocalShopItemIfMissing("Assasins Creed žemėlapis", 120, "map_assasinscreed");
+        addLocalShopItemIfMissing("Desert žemėlapis", 120, "map_desert");
+        addLocalShopItemIfMissing("Night Vision žemėlapis", 120, "map_nightvision");
+        addLocalShopItemIfMissing("San Andreas žemėlapis", 120, "map_sanandreas");
+    }
+
+    private void addLocalShopItemIfMissing(String name, int price, String drawable) {
+        for (ShopMarker existing : items) {
+            if (drawable.equals(existing.getDrawable())) {
+                return;
+            }
+        }
+
+        ShopMarker item = new ShopMarker();
+        item.setName(name);
+        item.setPrice(price);
+        item.setDrawable(drawable);
+        items.add(item);
+    }
+
+    static String formatPointsText(int points) {
+        return "Taškai: " + points;
+    }
+
+    static boolean canAffordPurchase(int userPoints, int itemPrice) {
+        return userPoints >= itemPrice;
+    }
+
+    static boolean isMarkerDrawable(String drawableName) {
+        return drawableName != null && drawableName.contains("marker");
+    }
+
+    static boolean isMapStyleResource(String drawableName) {
+        return drawableName != null && drawableName.startsWith("map_");
+    }
+
+    static Map<String, Object> buildPurchaseUpdate(int updatedPoints, String drawableName) {
+        Map<String, Object> update = new HashMap<>();
+        update.put("points", updatedPoints);
+
+        if (isMarkerDrawable(drawableName)) {
+            update.put("selectedMarker", drawableName);
+        } else if (isMapStyleResource(drawableName)) {
+            update.put("selectedMapStyle", drawableName);
+        } else {
+            update.put("selectedBackground", drawableName);
+        }
+
+        return update;
+    }
+
     private void onItemClicked(ShopMarker item) {
 
-        if (userPoints < item.getPrice()) {
+        if (!canAffordPurchase(userPoints, item.getPrice())) {
             Toast.makeText(getContext(), "Nepakanka taškų", Toast.LENGTH_SHORT).show();
             return;
         }
 
         userPoints -= item.getPrice();
-        textPoints.setText("Taškai: " + userPoints);
+        textPoints.setText(formatPointsText(userPoints));
 
-        Map<String, Object> update = new HashMap<>();
-        update.put("points", userPoints);
+        Map<String, Object> update = buildPurchaseUpdate(userPoints, item.getDrawable());
 
-        if (item.getDrawable().contains("marker")) {
-
-            update.put("selectedMarker", item.getDrawable());
-
-        } else {
-
-            update.put("selectedBackground", item.getDrawable());
-
+        if (!isMarkerDrawable(item.getDrawable()) && !isMapStyleResource(item.getDrawable())) {
             // 🔥 LIVE BACKGROUND KEITIMAS
             if (backgroundListener != null) {
                 backgroundListener.onBackgroundChanged(item.getDrawable());

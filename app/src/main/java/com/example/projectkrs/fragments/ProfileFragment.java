@@ -43,7 +43,7 @@ public class ProfileFragment extends Fragment {
     @Override
     public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == CHANGE_PASSWORD_REQUEST && resultCode != Activity.RESULT_OK) {
+        if (shouldShowChangePasswordFailureToast(requestCode, resultCode)) {
             Toast.makeText(
                     getActivity(),
                     "Slaptažodžio keitimas nepavyko arba buvo atšauktas",
@@ -97,6 +97,15 @@ public class ProfileFragment extends Fragment {
         return view;
     }
 
+
+    static boolean shouldShowChangePasswordFailureToast(int requestCode, int resultCode) {
+        return requestCode == CHANGE_PASSWORD_REQUEST && resultCode != Activity.RESULT_OK;
+    }
+
+    static boolean isAchievementUnlockedByVisitedPlaces(int visitedPlaces, int threshold) {
+        return visitedPlaces >= threshold;
+    }
+
     // ======================
     // 🏆 ACHIEVEMENTAI
     // ======================
@@ -124,12 +133,12 @@ public class ProfileFragment extends Fragment {
         );
 
         // 🌍 KELIONĖS
-        addAchievement("Keliautojas I", "Aplankyta 10 vietų", visitedPlaces >= 10);
-        addAchievement("Keliautojas II", "Aplankyta 20 vietų", visitedPlaces >= 20);
-        addAchievement("Keliautojas III", "Aplankyta 30 vietų", visitedPlaces >= 30);
-        addAchievement("Keliautojas IV", "Aplankyta 40 vietų", visitedPlaces >= 40);
-        addAchievement("Keliautojas V", "Aplankyta 50 vietų", visitedPlaces >= 50);
-        addAchievement("Legenda", "Aplankyta 60 vietų", visitedPlaces >= 60);
+        addAchievement("Keliautojas I", "Aplankyta 10 vietų", isAchievementUnlockedByVisitedPlaces(visitedPlaces, 10));
+        addAchievement("Keliautojas II", "Aplankyta 20 vietų", isAchievementUnlockedByVisitedPlaces(visitedPlaces, 20));
+        addAchievement("Keliautojas III", "Aplankyta 30 vietų", isAchievementUnlockedByVisitedPlaces(visitedPlaces, 30));
+        addAchievement("Keliautojas IV", "Aplankyta 40 vietų", isAchievementUnlockedByVisitedPlaces(visitedPlaces, 40));
+        addAchievement("Keliautojas V", "Aplankyta 50 vietų", isAchievementUnlockedByVisitedPlaces(visitedPlaces, 50));
+        addAchievement("Legenda", "Aplankyta 60 vietų", isAchievementUnlockedByVisitedPlaces(visitedPlaces, 60));
 
         // ⭐ PAPILDOMI
         addAchievement("Pirmas prisijungimas", "Prisijungei pirmą kartą", true);

@@ -82,7 +82,7 @@ public class HomeActivity extends AppCompatActivity
                 getPackageName()
         );
 
-        if (resId != 0) {
+        if (isValidDrawableResId(resId)) {
             findViewById(android.R.id.content)
                     .setBackgroundResource(resId);
         }
@@ -107,7 +107,7 @@ public class HomeActivity extends AppCompatActivity
                                 getPackageName()
                         );
 
-                        if (resId != 0) {
+                        if (isValidDrawableResId(resId)) {
                             findViewById(android.R.id.content)
                                     .setBackgroundResource(resId);
                         }
@@ -115,15 +115,40 @@ public class HomeActivity extends AppCompatActivity
                 });
     }
 
+
+    static List<Map<String, Object>> buildDefaultShopMarkersList() {
+        List<Map<String, Object>> markers = new ArrayList<>();
+        markers.add(createItemMap("Violetinis markeris", 10, "marker_violet"));
+        markers.add(createItemMap("Raudonas markeris", 20, "marker_red"));
+        markers.add(createItemMap("Mėlynas markeris", 30, "marker_blue"));
+        return markers;
+    }
+
+    static List<Map<String, Object>> buildDefaultBackgroundsList() {
+        List<Map<String, Object>> backgrounds = new ArrayList<>();
+        backgrounds.add(createItemMap("Žalias gradientas", 25, "green_gradient_background"));
+        backgrounds.add(createItemMap("Mėlynas su taškais", 40, "blue_dots_background"));
+        return backgrounds;
+    }
+
+    static Map<String, Object> createItemMap(String name, int price, String drawable) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("name", name);
+        map.put("price", price);
+        map.put("drawable", drawable);
+        return map;
+    }
+
+    static boolean isValidDrawableResId(int resId) {
+        return resId != 0;
+    }
+
     // ===========================
     // DEFAULT MARKERIAI
     // ===========================
     private void initDefaultShopMarkers() {
 
-        List<Map<String, Object>> markers = new ArrayList<>();
-        markers.add(createItem("Violetinis markeris", 10, "marker_violet"));
-        markers.add(createItem("Raudonas markeris", 20, "marker_red"));
-        markers.add(createItem("Mėlynas markeris", 30, "marker_blue"));
+        List<Map<String, Object>> markers = buildDefaultShopMarkersList();
 
         for (Map<String, Object> marker : markers) {
             db.collection("shop_markers")
@@ -142,9 +167,7 @@ public class HomeActivity extends AppCompatActivity
     // ===========================
     private void initDefaultBackgrounds() {
 
-        List<Map<String, Object>> backgrounds = new ArrayList<>();
-        backgrounds.add(createItem("Žalias gradientas", 25, "green_gradient_background"));
-        backgrounds.add(createItem("Mėlynas su taškais", 40, "blue_dots_background"));
+        List<Map<String, Object>> backgrounds = buildDefaultBackgroundsList();
 
         for (Map<String, Object> bg : backgrounds) {
             db.collection("shop_backgrounds")
@@ -158,11 +181,4 @@ public class HomeActivity extends AppCompatActivity
         }
     }
 
-    private Map<String, Object> createItem(String name, int price, String drawable) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("name", name);
-        map.put("price", price);
-        map.put("drawable", drawable);
-        return map;
-    }
 }

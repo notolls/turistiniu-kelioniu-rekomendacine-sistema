@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.androidApplication)
     id("com.google.gms.google-services")
 }
+apply(plugin = "jacoco")
 android {
     namespace = "com.example.projectkrs"
     compileSdk = 34

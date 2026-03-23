@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class StatisticsActivity extends AppCompatActivity {
 
@@ -94,13 +95,29 @@ public class StatisticsActivity extends AppCompatActivity {
                         tvTotalVisited.setText("Aplankyta vietų: " + totalVisited);
                         progressBarMonthly.setProgress(monthlyVisited);
 
-                        String mostVisitedType = typeCounts.entrySet().stream()
-                                .max(Comparator.comparingInt(java.util.Map.Entry::getValue))
-                                .map(java.util.Map.Entry::getKey)
-                                .orElse("Nėra duomenų");
+                        String mostVisitedType = resolveMostVisitedType(typeCounts);
                         tvMostVisitedType.setText("Dažniausiai lankytas tipas: " + mostVisitedType);
                     }
                 });
+    }
+
+
+    static String resolveMostVisitedType(Map<String, Integer> typeCounts) {
+        if (typeCounts == null || typeCounts.isEmpty()) {
+            return "Nėra duomenų";
+        }
+
+        return typeCounts.entrySet().stream()
+                .max(Comparator.comparingInt(Map.Entry::getValue))
+                .map(Map.Entry::getKey)
+                .orElse("Nėra duomenų");
+    }
+
+    static void sortPlacesByCountDesc(List<PlaceWithCount> places) {
+        if (places == null) {
+            return;
+        }
+        Collections.sort(places, (p1, p2) -> Integer.compare(p2.getCount(), p1.getCount()));
     }
 
     private void loadTopPlacesAllUsers() {
@@ -126,7 +143,7 @@ public class StatisticsActivity extends AppCompatActivity {
                             topPlacesList.add(new PlaceWithCount(placeNames.get(placeId), placeCounts.get(placeId)));
                         }
 
-                        Collections.sort(topPlacesList, (p1, p2) -> Integer.compare(p2.getCount(), p1.getCount()));
+                        sortPlacesByCountDesc(topPlacesList);
                         topPlaceAdapter.notifyDataSetChanged();
                     }
                 });
