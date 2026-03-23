@@ -81,6 +81,14 @@ public class RegisterActivity extends AppCompatActivity {
         return categoryTypesMap.get(selectedCategoryLabel);
     }
 
+    static Map<String, Object> buildInitialUserData(String categoryType) {
+        Map<String, Object> userData = new HashMap<>();
+        userData.put("categoryType", categoryType);
+        userData.put("points", 100);
+        userData.put("selectedMarker", "marker_default");
+        return userData;
+    }
+
     private void registerUser() {
         String email = editTextEmail.getText().toString();
         String password = editTextPassword.getText().toString();
@@ -119,10 +127,7 @@ public class RegisterActivity extends AppCompatActivity {
     private void createUserInFirestore(String uid, String categoryType) {
         FirebaseFirestore db = FirebaseFirestore.getInstance();
 
-        Map<String, Object> userData = new HashMap<>();
-        userData.put("categoryType", categoryType);
-        userData.put("points", 100); // pradiniai taškai
-        userData.put("selectedMarker", "marker_default"); // pradinis markeris
+        Map<String, Object> userData = buildInitialUserData(categoryType);
 
         db.collection("users").document(uid).set(userData)
                 .addOnSuccessListener(aVoid -> {
